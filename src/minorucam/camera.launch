@@ -1,0 +1,58 @@
+<!--
+    Launcher for basic stereo camera which publishes images
+-->
+<launch>
+  <!-- Machine settings. See http://www.ros.org/wiki/roslaunch/XML/machine -->
+  <!--machine name="local_alt" address="localhost" default="true" /-->
+  <!-- stereocamera -->
+  <node pkg="minorucam" type="minorucam" name="minorucam" 
+        respawn="true" 
+        output="screen"
+        ns="camera">
+
+    <!-- left camera device -->
+    <param name="dev_left" value="/dev/video1" />
+    <!-- right camera device -->
+    <param name="dev_right" value="/dev/video0" />
+    <!-- Calibration -->
+    <param name="calibration_filename" value="/home/pi/calibration.txt" />
+    <!-- image width -->
+    <param name="width" value="320" />
+    <!-- image height -->
+    <param name="height" value="240" />
+    <!-- Frames per second -->
+    <param name="fps" value="30" />
+    <!-- Exposure [10 x milliseconds] (0 = automatic). IN MANUAL MODE, SETTING DOESN'T WORK!-->
+    <param name="exposure" value="0" />
+    <!-- Flip the left image -->
+    <param name="flip_left" value="false" />
+    <!-- Flip the right image -->
+    <param name="flip_right" value="false" />
+    <!-- Enable histogram equalization -->
+    <param name="hist_equal" value="true" />
+    <!-- Enable profiling -->
+    <param name="profiling" value="false" />
+
+    <!-- Enable publishing raw left image -->
+    <param name="pub_image" value="false" />
+
+    <!-- Enable publishing disparity image -->
+    <param name="pub_disparity" value="false" />
+
+    <!-- Enable publishing pointcloud -->
+    <param name="pub_cloud" value="false" />
+    <param name="cloud_range_max" value="5" />
+
+    <!-- Laser scan parameters -->
+    <param name="pub_laser" value="true" />
+    <param name="scan_angle_min" value="-0.222" />
+    <param name="scan_angle_max" value="0.595" />
+    <param name="scan_angle_increment" value="0.00259" />
+    <param name="scan_range_min" value="0.01" />
+    <param name="scan_range_max" value="3" />
+    <param name="scan_range_def_infinity" value="false" />
+    <param name="scan_height_min" value="-0.01" />
+    <param name="scan_height_max" value="0.01" />
+  </node>
+</launch>
+
