@@ -110,9 +110,6 @@ Camera *right_camera = NULL;
 IplImage *l=NULL;
 IplImage *r=NULL;
 
-unsigned char *tmp_l=NULL;
-unsigned char *tmp_r=NULL;
-
 unsigned long cap_cntr = 0;
 float cap_avg_time = 0;
 
@@ -157,16 +154,11 @@ int main(int argc, char** argv)
     right_camera->setExposure(opt.exposure);
   }
 
-  tmp_l = new unsigned char[opt.ww * opt.hh * 3];
-  tmp_r = new unsigned char[opt.ww * opt.hh * 3];
-
   if ( pthread_create(&imgCaptureThread, NULL, &CaptureImages, (void*)&opt) != 0 ) {
     ROS_ERROR("Couldn't create Camera THREAD");
     stop_cameras(left_camera,right_camera);
     cvReleaseImage(&l);
     cvReleaseImage(&r);
-    delete[] tmp_l;
-    delete[] tmp_r;
     exit(1);
   }
 
@@ -174,8 +166,8 @@ int main(int argc, char** argv)
   camera_calibration.ParseCalibrationFile(opt.calibration_filename);
   bool rectify_images = camera_calibration.rectification_loaded;
 
-  IplImage* hist_image0 = cvCreateImage( cvGetSize(l), IPL_DEPTH_8U, 1 );
-  IplImage* hist_image1 = cvCreateImage( cvGetSize(l), IPL_DEPTH_8U, 1 );
+  IplImage* hist_image0 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
+  IplImage* hist_image1 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
 
   // publish under this name space
   ros::NodeHandle n;
@@ -240,8 +232,8 @@ int main(int argc, char** argv)
     capture_time = ros::Time::now();
 
     pthread_mutex_lock(&imgCopyMutex);
-    memcpy((void*)l_, tmp_l, opt.ww*opt.hh*3);
-    memcpy((void*)r_, tmp_r, opt.ww*opt.hh*3);
+    memcpy((void*)l_, l->imageData, opt.ww*opt.hh*3);
+    memcpy((void*)r_, r->imageData, opt.ww*opt.hh*3);
     pthread_mutex_unlock(&imgCopyMutex);
 
     // flip images
@@ -343,8 +335,6 @@ int main(int argc, char** argv)
   stop_cameras(left_camera,right_camera);
   cvReleaseImage(&l);
   cvReleaseImage(&r);
-  delete[] tmp_l;
-  delete[] tmp_r;
   cvReleaseImage(&hist_image0);
   cvReleaseImage(&hist_image1);
   delete[] l_;
@@ -643,12 +633,9 @@ void *CaptureImages(void *param)
     }
 
     // Convert to IplImage
+    pthread_mutex_trylock(&imgCopyMutex);
     left_camera->toIplImage(l);
     right_camera->toIplImage(r);
-
-    pthread_mutex_trylock(&imgCopyMutex);
-    memcpy((void*)tmp_l, l->imageData, ww*hh*3);
-    memcpy((void*)tmp_r, r->imageData, ww*hh*3);
     pthread_mutex_unlock(&imgCopyMutex);
 
     if (profiling) {
