@@ -29,7 +29,7 @@
     <!-- Flip the right image -->
     <param name="flip_right" value="false" />
     <!-- Enable histogram equalization -->
-    <param name="hist_equal" value="true" />
+    <param name="hist_equal" value="false" />
     <!-- Enable profiling -->
     <param name="profiling" value="false" />
 
@@ -47,7 +47,7 @@
     <param name="pub_laser" value="true" />
     <param name="scan_range_min" value="0.01" />
     <param name="scan_range_max" value="3" />
-    <param name="scan_range_def_infinity" value="false" />
+    <param name="scan_range_def_infinity" value="true" />
     <param name="scan_height_min" value="-5" />
     <param name="scan_height_max" value="5" />
   </node>

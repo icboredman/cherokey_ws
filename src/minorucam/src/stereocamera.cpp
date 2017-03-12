@@ -59,8 +59,6 @@
 
 #include <time.h>
 
-#include "Options.h"
-
 #include "v4l2stereo_no_sse/anyoption.h"
 #include "v4l2stereo_no_sse/drawing.h"
 #include "v4l2stereo_no_sse/stereo.h"
@@ -78,7 +76,7 @@ using namespace cv;
 class Options
 {
 public:
-  void LoadOptions(void);
+  void LoadOptions(ros::NodeHandle& nh);
   std::string dev_left;
   std::string dev_right;
   std::string calibration_filename;
@@ -100,7 +98,7 @@ public:
   bool  scan_range_def_infinity;
   int scan_height_min;
   int scan_height_max;
-}
+};
 
 
 pthread_t imgCaptureThread;
@@ -121,7 +119,7 @@ float cap_avg_time = 0;
 void *CaptureImages(void *param);
 void flip( unsigned char* raw_image, int ww, int hh );
 void colorize_disparities( unsigned char *img, float *disparities, int ww, int hh, int min_disparity );
-void pointcloud_publish( unsigned char *image, IplImage *points, Options &opt, ros:::Time &time, ros::Publisher &pub );
+void pointcloud_publish( unsigned char *image, IplImage *points, Options &opt, ros::Time &time, ros::Publisher &pub );
 void laserscan_publish( IplImage *points, camcalib &camera_calibration, Options &opt, ros::Time &time, ros::Publisher &pub );
 void stop_cameras(Camera *&left_camera, Camera *&right_camera);
 
@@ -138,7 +136,7 @@ int main(int argc, char** argv)
   Options opt;
   ros::NodeHandle nh("~");
   opt.LoadOptions(nh);
-  
+
   if (left_camera != NULL) {
     stop_cameras(left_camera,right_camera);
   }
@@ -162,7 +160,7 @@ int main(int argc, char** argv)
   tmp_l = new unsigned char[opt.ww * opt.hh * 3];
   tmp_r = new unsigned char[opt.ww * opt.hh * 3];
 
-  if ( pthread_create(&imgCaptureThread, NULL, &CaptureImages, (void*)&(opt.profiling)) != 0 ) {
+  if ( pthread_create(&imgCaptureThread, NULL, &CaptureImages, (void*)&opt) != 0 ) {
     ROS_ERROR("Couldn't create Camera THREAD");
     stop_cameras(left_camera,right_camera);
     cvReleaseImage(&l);
@@ -189,22 +187,24 @@ int main(int argc, char** argv)
   raw_image.encoding = "bgr8";
   raw_image.data.resize(opt.ww*opt.hh*3);
 
+  image_transport::ImageTransport it1(n), it2(n);
+  image_transport::Publisher image_pub, disp_pub;
+  ros::Publisher cloud_pub, scan_pub;
+
   if (opt.publish_raw_image) {
-    image_transport::ImageTransport it1(n);
-    image_transport::Publisher image_pub = it1.advertise("left/image_raw", 1);
+    image_pub = it1.advertise("left/image_raw", 1);
   }
 
   if (opt.publish_disparity) {
-    image_transport::ImageTransport it2(n);
-    image_transport::Publisher disp_pub = it2.advertise("disparity", 1);
+    disp_pub = it2.advertise("disparity", 1);
   }
 
   if (opt.publish_pointcloud) {
-    ros::Publisher cloud_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("pointcloud", 1);
+    cloud_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("pointcloud", 1);
   }
 
   if (opt.publish_laserscan) {
-    ros::Publisher scan_pub = n.advertise<sensor_msgs::LaserScan>("laserscan", 1);
+    scan_pub = n.advertise<sensor_msgs::LaserScan>("laserscan", 1);
   }
 
   unsigned char *l_ = new unsigned char[opt.ww * opt.hh * 3];
@@ -388,14 +388,14 @@ void Options::LoadOptions(ros::NodeHandle& nh)
   nh.param("width", ww, 320);
   nh.param("height", hh, 240);
   nh.param("fps", fps, 30);
-  nh.param("dev_left", dev_left, "/dev/video1");
-  nh.param("dev_right", dev_right, "/dev/video0");
+  nh.param("dev_left", dev_left, (std::string)"/dev/video1");
+  nh.param("dev_right", dev_right, (std::string)"/dev/video0");
   nh.param("flip_left", flip_left_image, false);
   nh.param("flip_right", flip_right_image, false);
 
   nh.param("exposure", exposure, 0);
 
-  nh.param("calibration_filename", calibration_filename, "calibration.txt");
+  nh.param("calibration_filename", calibration_filename, (std::string)"calibration.txt");
 
   nh.param("hist_equal", histogram_equalization, false);
 
@@ -404,11 +404,11 @@ void Options::LoadOptions(ros::NodeHandle& nh)
   nh.param("pub_disparity", publish_disparity, true);
 
   nh.param("pub_cloud", publish_pointcloud, true);
-  nh.param("cloud_range_max", cloud_range_max, 6000);
+  nh.param("cloud_range_max", cloud_range_max, (float)6000);
 
   nh.param("pub_laser", publish_laserscan, true);
-  nh.param("scan_range_min", scan_range_min, 0);
-  nh.param("scan_range_max", scan_range_max, 6000);
+  nh.param("scan_range_min", scan_range_min, (float)0);
+  nh.param("scan_range_max", scan_range_max, (float)6000);
   nh.param("scan_range_def_infinity", scan_range_def_infinity, true);
   nh.param("scan_height_min", scan_height_min, -5);
   nh.param("scan_height_max", scan_height_max, 5);
@@ -499,7 +499,7 @@ void colorize_disparities( unsigned char * img,
 /**************************************************************
  * Publish Pointcloud
  **************************************************************/
-void pointcloud_publish( unsigned char *image, IplImage *points, Options &opt, ros:::Time &time, ros::Publisher &pub )
+void pointcloud_publish( unsigned char *image, IplImage *points, Options &opt, ros::Time &time, ros::Publisher &pub )
 {
   pcl::PointCloud<pcl::PointXYZRGB> cloud;
 
@@ -623,7 +623,11 @@ void laserscan_publish( IplImage *points, camcalib &camera_calibration, Options 
  **************************************************************/
 void *CaptureImages(void *param)
 {
-  bool profiling = *(bool*)param;
+  Options *opt = (Options*)param;
+  bool profiling = opt->profiling;
+  int ww = opt->ww;
+  int hh = opt->hh;
+
   clock_t cap_start;
   float cap_time;
 
