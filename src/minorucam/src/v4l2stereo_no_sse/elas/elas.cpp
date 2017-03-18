@@ -22,6 +22,7 @@
 #include "elas.h"
 
 #include <math.h>
+#include <omp.h>
 #include "descriptor.h"
 #include "triangle.h"
 #include "matrix.h"
@@ -76,28 +77,42 @@ void Elas::process (uint8_t* I1_,uint8_t* I2_,float* D1,float* D2,const int32_t*
 	vector<support_pt> p_support = computeSupportMatches(desc1.I_desc,desc2.I_desc);
 
 #ifdef PROFILE
-	timer.start("Delaunay Triangulation");
+	timer.start("Parallel Region #1 = {Delaunay Triangulation, Disparity Planes, Grid}");
 #endif
-	vector<triangle> tri_1 = computeDelaunayTriangulation(p_support,0);
-	vector<triangle> tri_2 = computeDelaunayTriangulation(p_support,1);
+vector<triangle> tri_1, tri_2;
+#pragma omp parallel num_threads(2)
+	{
+#pragma omp sections
+		{
+#pragma omp section
+			{
+				tri_1 = computeDelaunayTriangulation(p_support,0);
+				computeDisparityPlanes(p_support,tri_1,0);
+				createGrid(p_support,disparity_grid_1,grid_dims,0);
+				//computeDisparity(p_support,tri_1,disparity_grid_1,grid_dims,desc1.I_desc,desc2.I_desc,0,D1);
+			}
+#pragma omp section
+			{
+				tri_2 = computeDelaunayTriangulation(p_support,1);
+				computeDisparityPlanes(p_support,tri_2,1);
+				createGrid(p_support,disparity_grid_2,grid_dims,1);
+				//computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
+			}
 
-#ifdef PROFILE
-	timer.start("Disparity Planes");
-#endif
-	computeDisparityPlanes(p_support,tri_1,0);
-	computeDisparityPlanes(p_support,tri_2,1);
-
-#ifdef PROFILE
-	timer.start("Grid");
-#endif
-	createGrid(p_support,disparity_grid_1,grid_dims,0);
-	createGrid(p_support,disparity_grid_2,grid_dims,1);
+		}
+	}
 
 #ifdef PROFILE
 	timer.start("Matching");
 #endif
-	computeDisparity(p_support,tri_1,disparity_grid_1,grid_dims,desc1.I_desc,desc2.I_desc,0,D1);
-	computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
+
+#pragma omp sections
+	{
+	#pragma omp section
+		computeDisparity(p_support,tri_1,disparity_grid_1,grid_dims,desc1.I_desc,desc2.I_desc,0,D1);
+	#pragma omp section
+		computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
+	}
 
 #ifdef PROFILE
 	timer.start("L/R Consistency Check");
@@ -152,6 +167,7 @@ void Elas::process (uint8_t* I1_,uint8_t* I2_,float* D1,float* D2,const int32_t*
 void Elas::removeInconsistentSupportPoints (int16_t* D_can,int32_t D_can_width,int32_t D_can_height) {
 
 	// for all valid support points do
+	#pragma omp for
 	for (int32_t u_can=0; u_can<D_can_width; u_can++) {
 		for (int32_t v_can=0; v_can<D_can_height; v_can++) {
 			int16_t d_can = *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width));
@@ -192,6 +208,7 @@ void Elas::removeRedundantSupportPoints(int16_t* D_can,int32_t D_can_width,int32
 	}
 
 	// for all valid support points do
+	#pragma omp for
 	for (int32_t u_can=0; u_can<D_can_width; u_can++) {
 		for (int32_t v_can=0; v_can<D_can_height; v_can++) {
 			int16_t d_can = *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width));
@@ -381,12 +398,19 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
 	// loop variables
 	int32_t u,v;
 	int16_t d,d2;
-
+	int32_t u_can, v_can;
+	int32_t lr_threshold = param.lr_threshold;
+	vector<support_pt> p_support;
+	vector<support_pt> partial_p_support[2];
 	// for all point candidates in image 1 do
-	for (int32_t u_can=1; u_can<D_can_width; u_can++) {
-		u = u_can*D_candidate_stepsize;
-		for (int32_t v_can=1; v_can<D_can_height; v_can++) {
-			v = v_can*D_candidate_stepsize;
+	#pragma omp parallel default(none) num_threads(2) private(u_can, v_can, u, d, v, d2) shared(partial_p_support,lr_threshold, D_can, D_can_width, D_can_height, D_candidate_stepsize, I1_desc, I2_desc)
+	{
+		int tid = omp_get_thread_num();
+	#pragma omp for
+	for (v_can=1; v_can<D_can_height; v_can++) {
+		v = v_can*D_candidate_stepsize;
+		for (u_can=1; u_can<D_can_width; u_can++) {
+			u = u_can*D_candidate_stepsize;
 
 			// initialize disparity candidate to invalid
 			*(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = -1;
@@ -397,34 +421,45 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
 
 				// find backwards
 				d2 = computeMatchingDisparity(u-d,v,I1_desc,I2_desc,true);
-				if (d2>=0 && abs(d-d2)<=param.lr_threshold)
+				if (d2>=0 && abs(d-d2)<=lr_threshold)
 					*(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = d;
 			}
 		}
 	}
 
 	// remove inconsistent support points
+	//timer.start("removeInconsistentSupportPoints");
 	removeInconsistentSupportPoints(D_can,D_can_width,D_can_height);
 
 	// remove support points on straight lines, since they are redundant
 	// this reduces the number of triangles a little bit and hence speeds up
 	// the triangulation process
+	//timer.start("removeRedundantSupportPoints");
 	removeRedundantSupportPoints(D_can,D_can_width,D_can_height,5,1,true);
 	removeRedundantSupportPoints(D_can,D_can_width,D_can_height,5,1,false);
 
+	//}
 	// move support points from image representation into a vector representation
-	vector<support_pt> p_support;
-	for (int32_t u_can=1; u_can<D_can_width; u_can++)
-		for (int32_t v_can=1; v_can<D_can_height; v_can++)
+	//timer.start("segundo for");
+
+
+
+	#pragma omp for
+	for (int32_t v_can=1; v_can<D_can_height; v_can++)
+		for (int32_t u_can=1; u_can<D_can_width; u_can++)
 			if (*(D_can+getAddressOffsetImage(u_can,v_can,D_can_width))>=0)
-				p_support.push_back(support_pt(u_can*D_candidate_stepsize,
-											   v_can*D_candidate_stepsize,
-											   *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width))));
+				partial_p_support[tid].push_back(support_pt(u_can*D_candidate_stepsize,
+						v_can*D_candidate_stepsize,
+						*(D_can+getAddressOffsetImage(u_can,v_can,D_can_width))));
+	}
+	p_support = partial_p_support[0];
+	p_support.insert(p_support.end(),partial_p_support[1].begin(),partial_p_support[1].end());
 
 	// if flag is set, add support points in image corners
 	// with the same disparity as the nearest neighbor support point
 	if (param.add_corners)
 		addCornerSupportPoints(p_support);
+
 
 	// free memory
 	free(D_can);
@@ -777,7 +812,8 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
                             uint8_t* I1_desc,uint8_t* I2_desc,bool right_image,float* D) {
 
 	// number of disparities
-	const int32_t disp_num  = grid_dims[0]-1;
+	//const int32_t disp_num  = grid_dims[0]-1;
+	int disp_num = grid_dims[0]-1;
 
 	// descriptor window_size
 	//int32_t window_size = 2;
@@ -801,11 +837,15 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
 	// loop variables
 	int32_t c1, c2, c3;
 	float plane_a,plane_b,plane_c,plane_d;
+	uint32_t i;
 
 	// for all triangles do
-	for (uint32_t i=0; i<tri.size(); i++) {
+#pragma omp parallel for num_threads(3) default(none)\
+	private(i, plane_a, plane_b, plane_c, plane_d, c1, c2, c3)\
+	shared(P, plane_radius, two_sigma_squared, disp_num, p_support, tri, disparity_grid, grid_dims, I1_desc, I2_desc, right_image, D)
+	for (i=0; i<tri.size(); i++) {
 
-		// get plane parameters
+		//printf("Matching thread %d\n", omp_get_thread_num());
 		//uint32_t p_i = i*3;
 		if (!right_image) {
 			plane_a = tri[i].t1a;
