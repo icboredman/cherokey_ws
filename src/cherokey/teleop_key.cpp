@@ -22,8 +22,8 @@
 
 const double speed_step =  0.05;  // [m/s]
 const double speed_top  =  1.0;   // [m/s]
-const double turn_step  =  0.5;   // [r/s]
-const double turn_top   = 10.0;   // [r/s]
+const double turn_step  =  0.05;  // [r/s]
+const double turn_top   =  3.0;   // [r/s]
 
 
 struct termios cooked, raw;
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     // Create a publisher object
-    ros::Publisher pub = nh.advertise<geometry_msgs::Twist>("base/cmd_vel", 1000);
+    ros::Publisher pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1000);
 
     // register quit handler
     signal(SIGINT,quit);
@@ -133,6 +133,7 @@ int main(int argc, char **argv)
             geometry_msgs::Twist msg;
             msg.linear.x = speed;
             msg.angular.z = turn;
+            ROS_DEBUG("speed=%f, turn=%f", speed, turn);
             // publish the message
             pub.publish(msg);
             dirty = false;

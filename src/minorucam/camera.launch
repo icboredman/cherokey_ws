@@ -10,6 +10,8 @@
         output="screen"
         ns="camera">
 
+    <remap from="laserscan" to="/scan"/>
+
     <!-- left camera device -->
     <param name="dev_left" value="/dev/video1" />
     <!-- right camera device -->

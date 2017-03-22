@@ -1,7 +1,0 @@
-<launch>
-
-  <include file="$(find cherokey)/cherokey.launch" />
-  <include file="$(find minorucam)/camera.launch" />
-  <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0 0 0 0 0 0 base_link camera_frame 1000" />
-
-</launch>
