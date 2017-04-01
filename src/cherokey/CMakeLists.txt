@@ -8,7 +8,7 @@ find_package(catkin REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(catkin REQUIRED COMPONENTS roscpp nav_msgs geometry_msgs image_transport cv_bridge)
+find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs tf nav_msgs geometry_msgs image_transport cv_bridge)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -107,10 +107,17 @@ catkin_package(
 ## Build ##
 ###########
 
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DRASPBERRY_PI -DBCM2835_NO_DELAY_COMPATIBILITY")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__unix__")
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
-include_directories(include ${catkin_INCLUDE_DIRS})
+include_directories(include
+   ${catkin_INCLUDE_DIRS}
+   RadioHead
+   RadioHead/RHutil
+)
 
 ## Declare a C++ library
 # add_library(cherokey
@@ -122,11 +129,18 @@ include_directories(include ${catkin_INCLUDE_DIRS})
 ## either from message generation or dynamic reconfigure
 # add_dependencies(cherokey ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+
 ## Declare a C++ executable
 # add_executable(cherokey_node src/cherokey_node.cpp)
-add_executable(hello hello.cpp)
+add_executable(base_serial base_serial.cpp
+   RadioHead/RHutil/HardwareSerial.cpp
+#   RadioHead/RHutil/RasPi.cpp
+   RadioHead/RHGenericDriver.cpp
+   RadioHead/RH_Serial.cpp
+   RadioHead/RHCRC.cpp
+)
+
 add_executable(teleop_key teleop_key.cpp)
-add_executable(odom_msg_remap odom_msg_remap.cpp)
 add_executable(show_disparity show_disparity.cpp)
 add_executable(show_image show_image.cpp)
 
@@ -135,9 +149,8 @@ add_executable(show_image show_image.cpp)
 # add_dependencies(cherokey_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(hello ${catkin_LIBRARIES})
+target_link_libraries(base_serial ${catkin_LIBRARIES})
 target_link_libraries(teleop_key ${catkin_LIBRARIES})
-target_link_libraries(odom_msg_remap ${catkin_LIBRARIES})
 target_link_libraries(show_disparity ${catkin_LIBRARIES})
 target_link_libraries(show_image ${catkin_LIBRARIES})
 
