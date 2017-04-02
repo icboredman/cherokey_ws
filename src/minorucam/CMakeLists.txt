@@ -153,7 +153,8 @@ link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 
-file(GLOB_RECURSE V4L2STEREO_SRC_FILES src/v4l2stereo_no_sse/*.cpp)
+file(GLOB_RECURSE V4L2STEREO_SRC_FILES src/v4l2stereo_no_sse/src/*.cpp)
+list(REMOVE_ITEM  V4L2STEREO_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/v4l2stereo_no_sse/src/main.cpp)
 
 ## Declare a C++ library
 # add_library(minorucam

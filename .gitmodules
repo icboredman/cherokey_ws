@@ -1,3 +1,6 @@
 [submodule "src/cherokey/base_serial/PacketSerial"]
 	path = src/cherokey/base_serial/PacketSerial
 	url = https://github.com/icboredman/PacketSerial
+[submodule "src/minorucam/src/v4l2stereo_no_sse"]
+	path = src/minorucam/src/v4l2stereo_no_sse
+	url = https://github.com/icboredman/v4l2stereo_no_sse

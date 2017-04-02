@@ -59,14 +59,14 @@
 
 #include <time.h>
 
-#include "v4l2stereo_no_sse/anyoption.h"
-#include "v4l2stereo_no_sse/drawing.h"
-#include "v4l2stereo_no_sse/stereo.h"
-#include "v4l2stereo_no_sse/fast.h"
-#include "v4l2stereo_no_sse/libcam.h"
-#include "v4l2stereo_no_sse/camcalib.h"
-#include "v4l2stereo_no_sse/pointcloud.h"
-#include "v4l2stereo_no_sse/elas/elas.h"
+#include "v4l2stereo_no_sse/src/anyoption.h"
+#include "v4l2stereo_no_sse/src/drawing.h"
+#include "v4l2stereo_no_sse/src/stereo.h"
+#include "v4l2stereo_no_sse/src/fast.h"
+#include "v4l2stereo_no_sse/src/libcam.h"
+#include "v4l2stereo_no_sse/src/camcalib.h"
+#include "v4l2stereo_no_sse/src/pointcloud.h"
+#include "v4l2stereo_no_sse/src/elas/elas.h"
 
 #include <pthread.h>
 
