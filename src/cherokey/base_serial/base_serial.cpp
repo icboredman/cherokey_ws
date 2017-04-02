@@ -9,9 +9,8 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include <RadioHead.h>
-#include <RHutil/HardwareSerial.h>
-#include "base_serial.h"
+#include "serial/serial.h"
+#include "MessageSerial.h"
 
 
 double cmd_vel_linear_x;
@@ -34,13 +33,40 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "base_serial");
   ros::NodeHandle nh;
 
-  // On Unix we connect to a physical serial port
-  // You can override this with RH_HARDWARESERIAL_DEVICE_NAME environment variable
-  HardwareSerial hardwareserial("/dev/ttyAMA0");
-  Base_Serial uart(hardwareserial);
+  // configure hardware serial port
+  serial::Serial uart("/dev/ttyAMA0", 115200, serial::Timeout(0,0,0,250,0));
 
-  uart.serial().begin(115200);
-  if( ! uart.init() )
+  // MessageSerial object will use the above hardware
+  MessageSerial serial;
+  serial.begin(&uart);
+
+  // define actual messages and create corresponding Message objects
+  typedef struct Power {
+    uint16_t battery_miV;
+    int16_t  battery_miA;
+    uint16_t vsupply_miV;
+    uint8_t  charger_state;
+    uint8_t  bat_percentage;
+  } tPower;
+  // Message objects should reference the above MessageSerial
+  Message<tPower,2> power(serial);
+
+  typedef struct {
+    float theta;
+    float dx_mm;
+    float dth;
+    uint16_t dt_ms;
+  } tOdom;
+  Message<tOdom,5> odom(serial);
+
+  typedef struct {
+    int16_t speed_mm_s;
+    int16_t turn_mrad_s;
+  } tDrive;
+  Message<tDrive,7> drive(serial);
+
+
+  if( ! uart.isOpen() )
   {
     ROS_ERROR("fail init serial device");
     exit(1);
@@ -69,23 +95,25 @@ int main(int argc, char **argv)
 
   while( ros::ok() )
   {
+    // message processing task
+    serial.update();
 
     if( cmd_vel_received )
     {
-      uart.drive.speed_mm_s = (int16_t)(cmd_vel_linear_x * 1000.0);
-      uart.drive.turn_mrad_s = (int16_t)(cmd_vel_angular_z * 1000.0);
-      if( ! uart.sendDrive() )
-        ROS_ERROR("sendDrive failed");
+      drive.data.speed_mm_s = (int16_t)(cmd_vel_linear_x * 1000.0);
+      drive.data.turn_mrad_s = (int16_t)(cmd_vel_angular_z * 1000.0);
+      drive.send();
       cmd_vel_received = false;
     }
 
-    if( uart.recvPower() )
+    if( power.available() )
     {
-      bat_msg.current = uart.power.battery_miA / 1023.0;
-      bat_msg.voltage = uart.power.battery_miV / 1023.0;
-      bat_msg.charge = uart.power.vsupply_miV / 1023.0; // use for VS
-      bat_msg.power_supply_status = uart.power.charger_state;
-      bat_msg.percentage = uart.power.bat_percentage / 100.0;
+      bat_msg.current = power.data.battery_miA / 1023.0;
+      bat_msg.voltage = power.data.battery_miV / 1023.0;
+      bat_msg.charge = power.data.vsupply_miV / 1023.0; // use for VS
+      bat_msg.power_supply_status = power.data.charger_state;
+      bat_msg.percentage = power.data.bat_percentage / 100.0;
+      power.ready();
       pub_bat.publish(bat_msg);
 
       if( ! bat_connected )
@@ -95,14 +123,15 @@ int main(int argc, char **argv)
       }
     }
 
-    if( uart.recvOdom() )
+    if( odom.available() )
     {
       current_time = ros::Time::now();
 
-      double theta = uart.odom.theta;
-      double dx = uart.odom.dx_mm / 1000.0;
-      double dth = uart.odom.dth;
-      double dt = uart.odom.dt_ms / 1000.0;
+      double theta = odom.data.theta;
+      double dx = odom.data.dx_mm / 1000.0;
+      double dth = odom.data.dth;
+      double dt = odom.data.dt_ms / 1000.0;
+      odom.ready();
 
       double vx = dx / dt;
       double vth = dth / dt;
@@ -130,24 +159,24 @@ int main(int argc, char **argv)
       odom_broadcaster.sendTransform(odom_tf);
 
       //next, we'll publish the odometry message over ROS
-      nav_msgs::Odometry odom;
-      odom.header.stamp = current_time;
-      odom.header.frame_id = "odom";
+      nav_msgs::Odometry odom_msg;
+      odom_msg.header.stamp = current_time;
+      odom_msg.header.frame_id = "odom";
 
       //set the position
-      odom.pose.pose.position.x = x;
-      odom.pose.pose.position.y = y;
-      odom.pose.pose.position.z = 0.0;
-      odom.pose.pose.orientation = odom_quat;
+      odom_msg.pose.pose.position.x = x;
+      odom_msg.pose.pose.position.y = y;
+      odom_msg.pose.pose.position.z = 0.0;
+      odom_msg.pose.pose.orientation = odom_quat;
 
       //set the velocity
-      odom.child_frame_id = "base_link";
-      odom.twist.twist.linear.x = vx;
-      odom.twist.twist.linear.y = 0.0;
-      odom.twist.twist.angular.z = vth;
+      odom_msg.child_frame_id = "base_link";
+      odom_msg.twist.twist.linear.x = vx;
+      odom_msg.twist.twist.linear.y = 0.0;
+      odom_msg.twist.twist.angular.z = vth;
 
       //publish the message
-      pub_odom.publish(odom);
+      pub_odom.publish(odom_msg);
 
       if( ! odom_connected )
       {
@@ -161,39 +190,3 @@ int main(int argc, char **argv)
 
 }
 
-
-
-
-
-/*****************************************************************
- * Copy these function from RHutil/RasPi.cpp to make linker happy
- *****************************************************************/
-
-//Initialize the values for sanity
-timeval RHStartTime;
-
-unsigned long millis() {
-  //Declare a variable to store current time
-  struct timeval RHCurrentTime;
-  //Get current time
-  gettimeofday(&RHCurrentTime,NULL);
-  //Calculate the difference between our start time and the end time
-  unsigned long difference = ((RHCurrentTime.tv_sec - RHStartTime.tv_sec) * 1000);
-  difference += ((RHCurrentTime.tv_usec - RHStartTime.tv_usec)/1000);
-  //Return the calculated value
-  return difference;
-}
-
-void delay (unsigned long ms) {
-  //Implement Delay function
-  struct timespec ts;
-  ts.tv_sec=0;
-  ts.tv_nsec=(ms * 1000);
-  nanosleep(&ts,&ts);
-}
-
-long random(long min, long max) {
-  long diff = max - min;
-  long ret = diff * rand() + min;
-  return ret;
-}

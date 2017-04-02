@@ -8,7 +8,7 @@ find_package(catkin REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs tf nav_msgs geometry_msgs image_transport cv_bridge)
+find_package(catkin REQUIRED COMPONENTS roscpp serial sensor_msgs tf nav_msgs geometry_msgs image_transport cv_bridge)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -115,8 +115,8 @@ catkin_package(
 # include_directories(include)
 include_directories(include
    ${catkin_INCLUDE_DIRS}
-   RadioHead
-   RadioHead/RHutil
+   base_serial/PacketSerial/src
+   base_serial/PacketSerial/src/Encoding
 )
 
 ## Declare a C++ library
@@ -132,14 +132,7 @@ include_directories(include
 
 ## Declare a C++ executable
 # add_executable(cherokey_node src/cherokey_node.cpp)
-add_executable(base_serial base_serial.cpp
-   RadioHead/RHutil/HardwareSerial.cpp
-#   RadioHead/RHutil/RasPi.cpp
-   RadioHead/RHGenericDriver.cpp
-   RadioHead/RH_Serial.cpp
-   RadioHead/RHCRC.cpp
-)
-
+add_executable(base_serial base_serial/base_serial.cpp)
 add_executable(teleop_key teleop_key.cpp)
 add_executable(show_disparity show_disparity.cpp)
 add_executable(show_image show_image.cpp)
