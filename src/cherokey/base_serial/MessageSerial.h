@@ -5,14 +5,10 @@ class MessageSerial : public PacketSerial
 {
 public:
   MessageSerial();
-#if defined(ARDUINO)
   void begin(unsigned long baud, size_t port=0);
-  void begin(Stream* serial);
-#elif defined(__unix__)
-  void begin(serial::Serial* serial);
-#endif
+  void begin(HSerial* serial);
   bool registerMsg(uint8_t id, uint8_t *data, uint8_t size, bool *flag);
-  void send(uint8_t id);
+  bool send(uint8_t id);
   void onPacket(const uint8_t* buffer, size_t size);
   enum {
     MAX_MSGS = 20,
@@ -40,9 +36,9 @@ public:
     rx_full = false;
   }
 
-  void send()
+  bool send()
   {
-    _serial->send(msg_id);
+    return _serial->send(msg_id);
   }
 
   bool available()
@@ -72,24 +68,17 @@ MessageSerial::MessageSerial()
   PacketSerial();
 }
 
-#if defined(ARDUINO)
 void MessageSerial::begin(unsigned long baud, size_t port)
 {
   setPacketHandler((PacketHandlerFunction)&MessageSerial::onPacket);
   PacketSerial::begin(baud, port);
 }
-void MessageSerial::begin(Stream* serial)
+
+void MessageSerial::begin(HSerial* serial)
 {
   setPacketHandler((PacketHandlerFunction)&MessageSerial::onPacket);
   PacketSerial::begin(serial);
 }
-#elif defined(__unix__)
-void MessageSerial::begin(serial::Serial* serial)
-{
-  setPacketHandler((PacketHandlerFunction)&MessageSerial::onPacket);
-  PacketSerial::begin(serial);
-}
-#endif
 
 bool MessageSerial::registerMsg(uint8_t id, uint8_t *data, uint8_t size, bool *flag)
 {
@@ -101,12 +90,12 @@ bool MessageSerial::registerMsg(uint8_t id, uint8_t *data, uint8_t size, bool *f
   return true;
 }
 
-void MessageSerial::send(uint8_t id)
+bool MessageSerial::send(uint8_t id)
 {
   uint8_t buffer[msgs[id].sz+1];
   buffer[0] = id;
   memcpy(&buffer[1], msgs[id].dt, msgs[id].sz);
-  PacketSerial::send(buffer, sizeof(buffer));
+  return PacketSerial::send(buffer, sizeof(buffer));
 }
 
 void MessageSerial::onPacket(const uint8_t* buffer, size_t size)

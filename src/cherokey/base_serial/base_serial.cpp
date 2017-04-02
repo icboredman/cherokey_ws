@@ -102,7 +102,8 @@ int main(int argc, char **argv)
     {
       drive.data.speed_mm_s = (int16_t)(cmd_vel_linear_x * 1000.0);
       drive.data.turn_mrad_s = (int16_t)(cmd_vel_angular_z * 1000.0);
-      drive.send();
+      if( ! drive.send() )
+        ROS_ERROR("Drive send failed");
       cmd_vel_received = false;
     }
 
