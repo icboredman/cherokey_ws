@@ -115,8 +115,9 @@ catkin_package(
 # include_directories(include)
 include_directories(include
    ${catkin_INCLUDE_DIRS}
-   base_serial/PacketSerial/src
-   base_serial/PacketSerial/src/Encoding
+#   base_serial/Encoding
+#   base_serial/PacketSerial/src
+#   base_serial/PacketSerial/src/Encoding
 )
 
 ## Declare a C++ library

@@ -1,5 +1,30 @@
-// This program subscribes to cherokey/odomTemp and
-// republishes on cherokey/odom.
+// =============================================================================
+// This program enables serial communication with slave base microcontroller and
+// publishes odometry and tf messages over ROS.
+// In addition, it subscribes to cmd_vel messages and retransmitts them to slave.
+//
+// Copyright (c) 2017 boredman <http://BoredomProjects.net>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+// =============================================================================
+
 #include <ros/ros.h>
 #include <sensor_msgs/BatteryState.h>
 #include <tf/transform_broadcaster.h>
@@ -36,9 +61,8 @@ int main(int argc, char **argv)
   // configure hardware serial port
   serial::Serial uart("/dev/ttyAMA0", 115200, serial::Timeout(0,0,0,250,0));
 
-  // MessageSerial object will use the above hardware
-  MessageSerial serial;
-  serial.begin(&uart);
+  // MessageSerial object will use the above port
+  MessageSerial serial(uart);
 
   // define actual messages and create corresponding Message objects
   typedef struct Power {
@@ -48,7 +72,7 @@ int main(int argc, char **argv)
     uint8_t  charger_state;
     uint8_t  bat_percentage;
   } tPower;
-  // Message objects should reference the above MessageSerial
+  // Message objects should reference the above MessageSerial object
   Message<tPower,2> power(serial);
 
   typedef struct {
@@ -65,6 +89,10 @@ int main(int argc, char **argv)
   } tDrive;
   Message<tDrive,7> drive(serial);
 
+  typedef struct {
+    char str[100];
+  } tStr;
+  Message<tStr,1> text(serial); // message id 1 is reserved for character string messages
 
   if( ! uart.isOpen() )
   {
@@ -85,17 +113,15 @@ int main(int argc, char **argv)
   bat_msg.power_supply_technology = sensor_msgs::BatteryState::POWER_SUPPLY_TECHNOLOGY_NIMH;
   bat_msg.present = true;
 
-  ros::Time current_time, last_time;
-  current_time = ros::Time::now();
-  last_time = ros::Time::now();
-
-  ROS_INFO("Base connected over serial");
+  ros::Time last_recv_time = ros::Time::now();
+  ros::Duration conn_lost_duration(5);	//sec
+  bool conn_lost_timeout = false;
   bool bat_connected = false;
   bool odom_connected = false;
 
   while( ros::ok() )
   {
-    // message processing task
+    // message processing function
     serial.update();
 
     if( cmd_vel_received )
@@ -122,11 +148,12 @@ int main(int argc, char **argv)
         ROS_INFO("Base sending BatteryState");
         bat_connected = true;
       }
+      last_recv_time = ros::Time::now();
     }
 
     if( odom.available() )
     {
-      current_time = ros::Time::now();
+      ros::Time current_time = ros::Time::now();
 
       double theta = odom.data.theta;
       double dx = odom.data.dx_mm / 1000.0;
@@ -184,7 +211,24 @@ int main(int argc, char **argv)
         ROS_INFO("Base sending tf and odom");
         odom_connected = true;
       }
+      last_recv_time = ros::Time::now();
     }
+
+    if( text.available() )
+    {
+      ROS_INFO(text.data.str);
+      text.ready();
+    }
+
+    if( !conn_lost_timeout && ros::Time::now() - last_recv_time > conn_lost_duration )
+    {
+      ROS_ERROR("Lost communication with Base");
+      bat_connected = false;
+      odom_connected = false;
+      conn_lost_timeout = true;
+    }
+    if( bat_connected || odom_connected )
+      conn_lost_timeout = false;
 
     ros::spinOnce();
   }
