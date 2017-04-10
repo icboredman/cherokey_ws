@@ -35,7 +35,8 @@
 #include <time.h>
 
 #include "serial/serial.h"
-#include "MessageSerial.h"
+#include "FastCRC.h"
+#include "MessageSerial/MessageSerial.h"
 
 
 double cmd_vel_linear_x;

@@ -115,7 +115,7 @@ catkin_package(
 # include_directories(include)
 include_directories(include
    ${catkin_INCLUDE_DIRS}
-#   base_serial/Encoding
+   base_serial/FastCRC
 #   base_serial/PacketSerial/src
 #   base_serial/PacketSerial/src/Encoding
 )
