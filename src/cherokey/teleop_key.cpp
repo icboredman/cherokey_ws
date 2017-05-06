@@ -124,6 +124,16 @@ int main(int argc, char **argv)
                 exit(0);
                 break;
             default :
+                if( isdigit(c) )    // step change in speed
+                {
+                    speed = (c - '0') * speed_step;
+                    dirty = true;
+                }
+                if( isalpha(c) )    // step change in turn
+                {
+                    turn = (c - 'a') * turn_step;
+                    dirty = true;
+                }
                 break;
         }
 

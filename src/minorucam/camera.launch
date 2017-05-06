@@ -25,7 +25,7 @@
     <!-- Frames per second -->
     <param name="fps" value="30" />
     <!-- Exposure [10 x milliseconds] (0 = automatic). IN MANUAL MODE, SETTING DOESN'T WORK!-->
-    <param name="exposure" value="0" />
+    <param name="exposure" value="1" />
     <!-- Flip the left image -->
     <param name="flip_left" value="false" />
     <!-- Flip the right image -->

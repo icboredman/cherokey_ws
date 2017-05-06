@@ -69,7 +69,7 @@ int main(int argc, char **argv)
   typedef struct Power {
     uint16_t battery_miV;
     int16_t  battery_miA;
-    uint16_t vsupply_miV;
+    uint16_t battery_mOhm;
     uint8_t  charger_state;
     uint8_t  bat_percentage;
   } tPower;
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 
   typedef struct {
     float theta;
-    float dx_mm;
+    float dx;
     float dth;
     uint16_t dt_ms;
   } tOdom;
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
     {
       bat_msg.current = power.data.battery_miA / 1023.0;
       bat_msg.voltage = power.data.battery_miV / 1023.0;
-      bat_msg.charge = power.data.vsupply_miV / 1023.0; // use for VS
+      bat_msg.charge = power.data.battery_mOhm / 1000.0; // use for internal resistance
       bat_msg.power_supply_status = power.data.charger_state;
       bat_msg.percentage = power.data.bat_percentage / 100.0;
       power.ready();
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
       ros::Time current_time = ros::Time::now();
 
       double theta = odom.data.theta;
-      double dx = odom.data.dx_mm / 1000.0;
+      double dx = odom.data.dx;
       double dth = odom.data.dth;
       double dt = odom.data.dt_ms / 1000.0;
       odom.ready();
