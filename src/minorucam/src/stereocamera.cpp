@@ -204,6 +204,8 @@ int main(int argc, char** argv)
   unsigned char *buffer = NULL;
 
   Elas::parameters param;
+//  param.speckle_size = 1000;
+  param.ipol_gap_width = 500;
   Elas elas(param);
   uint8_t* I1 = new uint8_t[opt.ww*opt.hh];
   uint8_t* I2 = new uint8_t[opt.ww*opt.hh];
@@ -303,12 +305,7 @@ int main(int argc, char** argv)
     else
       img = l_;
 
-    if (opt.publish_disparity) {
-      // Color code image based on disparity
-      colorize_disparities( img, left_disparities, opt.ww, opt.hh, 0 );
-    }
-
-    if (opt.publish_raw_image || opt.publish_disparity) {
+    if (opt.publish_raw_image) {
       // Convert to sensor_msgs::Image
       memcpy ((void*)(&raw_image.data[0]), (void*)img, opt.ww*opt.hh*3);
       // publish image
@@ -317,6 +314,15 @@ int main(int argc, char** argv)
 
     if (opt.publish_pointcloud) {
       pointcloud_publish( img, points_image, opt, capture_time, cloud_pub );
+    }
+
+    if (opt.publish_disparity) {
+      // Color code image based on disparity
+      colorize_disparities( img, left_disparities, opt.ww, opt.hh, 0 );
+      // Convert to sensor_msgs::Image
+      memcpy ((void*)(&raw_image.data[0]), (void*)img, opt.ww*opt.hh*3);
+      // publish image
+      disp_pub.publish(raw_image);
     }
 
     if (opt.publish_laserscan) {
@@ -565,6 +571,9 @@ void laserscan_publish( IplImage *points, camcalib &camera_calibration, Options 
   int width = points->width;
   int height = points->height;
   int pixels = width * height;
+
+  vector<double> ranges[width];
+
   int n = 0, ctr = 0, w = 0, h = 0;
   for (int i = 0; i < pixels; i++, n += 3) {
     float x = points_image_data[n] / 1000;
@@ -594,14 +603,33 @@ void laserscan_publish( IplImage *points, camcalib &camera_calibration, Options 
 
     //overwrite range at laserscan ray if new range is smaller
     int index = (angle - scan_angle_min) / scan_angle_increment;
+//    int index = width - w - 1;
+/*
     if (range < scan.ranges[index]) {
       scan.ranges[index] = range;
     }
+*/
+    ranges[index].push_back(range);
 
     ctr++;
   }
 
   if (ctr > 0) {
+
+    for(int i=0; i<width; i++) {
+      int length = ranges[i].size();
+      if( length == 0 )
+        if (opt.scan_range_def_infinity)
+          scan.ranges[i] = std::numeric_limits<double>::infinity();
+        else
+          scan.ranges[i] = opt.scan_range_max - 0.01;
+      else {
+        std::sort(ranges[i].begin(), ranges[i].end());
+        double median = ranges[i].at(length/2);
+        scan.ranges[i] = median;
+      }
+    }
+
     pub.publish(scan);
   }
 }
