@@ -81,6 +81,7 @@ public:
   std::string dev_right;
   std::string calibration_filename;
   int ww;
+  int camhh;
   int hh;
   int fps;
   int exposure;
@@ -141,8 +142,8 @@ int main(int argc, char** argv)
   l = cvCreateImage(cvSize(opt.ww, opt.hh), 8, 3);
   r = cvCreateImage(cvSize(opt.ww, opt.hh), 8, 3);
 
-  left_camera = new Camera(opt.dev_left.c_str(), opt.ww, opt.hh, opt.fps);
-  right_camera = new Camera(opt.dev_right.c_str(), opt.ww, opt.hh, opt.fps);
+  left_camera = new Camera(opt.dev_left.c_str(), opt.ww, opt.camhh, opt.fps);
+  right_camera = new Camera(opt.dev_right.c_str(), opt.ww, opt.camhh, opt.fps);
 
   if (opt.exposure == 0) {
     left_camera->setExposureAuto();
@@ -165,6 +166,11 @@ int main(int argc, char** argv)
   camcalib camera_calibration;
   camera_calibration.ParseCalibrationFile(opt.calibration_filename);
   bool rectify_images = camera_calibration.rectification_loaded;
+
+  //correct -Cy due to different image height
+  float cam_Cy = cvmGet(camera_calibration.disparityToDepth,1,3);
+  float new_Cy = cam_Cy + (opt.camhh-opt.hh) / 2;
+  cvmSet(camera_calibration.disparityToDepth,1,3, new_Cy );
 
   IplImage* hist_image0 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
   IplImage* hist_image1 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
@@ -205,7 +211,7 @@ int main(int argc, char** argv)
 
   Elas::parameters param;
 //  param.speckle_size = 1000;
-  param.ipol_gap_width = 500;
+//  param.ipol_gap_width = 500;
   Elas elas(param);
   uint8_t* I1 = new uint8_t[opt.ww*opt.hh];
   uint8_t* I2 = new uint8_t[opt.ww*opt.hh];
@@ -382,6 +388,7 @@ void Options::LoadOptions(ros::NodeHandle& nh)
   nh.param("profiling", profiling, false);
 
   nh.param("width", ww, 320);
+  nh.param("cam_height", camhh, 240);
   nh.param("height", hh, 240);
   nh.param("fps", fps, 30);
   nh.param("dev_left", dev_left, (std::string)"/dev/video1");
@@ -643,8 +650,6 @@ void *CaptureImages(void *param)
 {
   Options *opt = (Options*)param;
   bool profiling = opt->profiling;
-  int ww = opt->ww;
-  int hh = opt->hh;
 
   clock_t cap_start;
   float cap_time;
