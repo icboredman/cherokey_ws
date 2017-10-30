@@ -1,7 +1,7 @@
 /***********************************************************************************
  *  StereoCamera
  *  ROS driver to process stereo images from a stereo webcam (eg. Minoru)
- *  Based on various command line options, it can generate and broadcast:
+ *  Depending on various command line options, it can generate and broadcast:
  *    raw image
  *    disparity image
  *    point cloud
@@ -34,7 +34,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * ------------------------------
- *  boredman@boredomprojects.net
+ *  boredman@BoredomProjects.net
  * ------------------------------
  *
  *  Rev 1.0 - 2017.03.12
@@ -53,6 +53,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sstream>
 #include <omp.h>
+#include <nav_msgs/Odometry.h>
 
 #include <iostream>
 #include <stdio.h>
@@ -99,6 +100,7 @@ public:
   bool  scan_range_def_infinity;
   int scan_height_min;
   int scan_height_max;
+  float turn_speed_limit;
 };
 
 
@@ -121,7 +123,8 @@ void pointcloud_publish( unsigned char *image, IplImage *points, Options &opt, r
 void laserscan_publish( IplImage *points, camcalib &camera_calibration, Options &opt, ros::Time &time, ros::Publisher &pub );
 void stop_cameras(Camera *&left_camera, Camera *&right_camera);
 
-
+float turn_speed = 0;
+void odom_callback(const nav_msgs::Odometry::ConstPtr& msg);
 
 
 /**************************************************************
@@ -175,8 +178,15 @@ int main(int argc, char** argv)
   IplImage* hist_image0 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
   IplImage* hist_image1 = cvCreateImage(cvSize(opt.ww, opt.hh), IPL_DEPTH_8U, 1);
 
-  // publish under this name space
+  // publish and subscribe under this name space
   ros::NodeHandle n;
+
+  ros::Subscriber odom_sub;
+  if (opt.turn_speed_limit > 0)
+  {
+    ROS_INFO("limiting stereo processing to twists below %f rad/sec", opt.turn_speed_limit);
+    odom_sub = n.subscribe("odom", 100, odom_callback);
+  }
 
   sensor_msgs::Image raw_image;
   raw_image.width  = opt.ww;
@@ -233,6 +243,14 @@ int main(int argc, char** argv)
   clock_t start;
 
   while (n.ok()) {
+
+    // do not try to process stereo if robot is turning too fast
+    // due to unsynchronized cameras
+    if (opt.turn_speed_limit > 0 && turn_speed > opt.turn_speed_limit)
+    {
+      ros::spinOnce();
+      continue;
+    }
 
     if (opt.profiling)
       start = clock();
@@ -416,6 +434,7 @@ void Options::LoadOptions(ros::NodeHandle& nh)
   nh.param("scan_height_min", scan_height_min, -5);
   nh.param("scan_height_max", scan_height_max, 5);
 
+  nh.param("turn_speed_limit", turn_speed_limit, (float)0);
 }
 
 
@@ -679,3 +698,19 @@ void *CaptureImages(void *param)
   }
 
 }
+
+
+/**************************************************************
+ * Callback to receive "odom" messages
+ * extract angular (turn) speed and save it in a global variable
+ **************************************************************/
+void odom_callback(const nav_msgs::Odometry::ConstPtr& msg)
+{
+  turn_speed = fabs(msg->twist.twist.angular.z);
+
+//  ROS_INFO("Seq: [%d]", msg->header.seq);
+//  ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+//  ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
+//  ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", msg->twist.twist.linear.x, msg->twist.twist.angular.z);
+}
+

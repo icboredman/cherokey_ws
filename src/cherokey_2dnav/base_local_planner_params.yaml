@@ -27,3 +27,8 @@ TrajectoryPlannerROS:
   publish_cost_grid_pc: false
 
   oscillation_reset_dist: 0.1
+
+# rotate_recovery - pause for 1 sec every 30 degrees
+  pause_duration: 1.0
+  pause_rotation: 0.52
+

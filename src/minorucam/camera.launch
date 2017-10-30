@@ -7,8 +7,7 @@
   <!-- stereocamera -->
   <node pkg="minorucam" type="minorucam" name="minorucam" 
         respawn="true" 
-        output="screen"
-        ns="camera">
+        output="screen">
 
     <remap from="laserscan" to="/scan"/>
 
@@ -35,6 +34,9 @@
     <param name="hist_equal" value="false" />
     <!-- Enable profiling -->
     <param name="profiling" value="false" />
+
+    <!-- Suspend stereo if turning too fast -->
+    <param name="turn_speed_limit" value="0.2" />
 
     <!-- Enable publishing raw left image -->
     <param name="pub_image" value="false" />
