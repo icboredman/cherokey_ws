@@ -1,0 +1,69 @@
+<!--
+    Launcher for basic stereo camera which publishes images
+-->
+<launch>
+  <!-- Machine settings. See http://www.ros.org/wiki/roslaunch/XML/machine -->
+  <!--machine name="local_alt" address="localhost" default="true" /-->
+  <!-- stereocamera -->
+  <node pkg="camera" type="camera_node" name="camera" 
+        respawn="true" 
+        output="screen">
+
+    <remap from="laserscan" to="/scan"/>
+
+    <!-- USB device hardware ID -->
+    <param name="usb_hwid" value="1fc9:0094" />
+
+    <!-- Calibration -->
+    <param name="calibration_filename" value="/home/pi/calibration_640.txt" />
+
+    <!-- Camera Exposure in microseconds -->
+    <param name="exposure" value="10000" />
+    <!-- Camera Analog gain -->
+    <param name="analogGain" value="16" />
+    <!-- Camera Digital gain -->
+    <param name="digitalGain" value="4" />
+    <!-- Camera Number of lines -->
+    <param name="numLines" value="480" />
+    <!-- Camera FPS = 50 / counts -->
+    <param name="countsPerFrame" value="50" />
+    <!-- Camera Auto Exposure (1 or 0)-->
+    <param name="autoExposure" value="0" />
+    <!-- Camera Auto Gain Control (1 or 0)-->
+    <param name="autoGain" value="0" />
+    <!-- Camera Compounding (1 or 0)-->
+    <param name="compEnable" value="0" />
+
+    <!-- Enable publishing raw left image -->
+    <param name="pub_image" value="true" />
+
+    <!-- Enable zoomed center section of raw image -->
+    <param name="zoom_center" value="false" />
+
+    <!-- Enable publishing rectified image -->
+    <param name="pub_rect" value="false" />
+
+    <!-- Enable histogram equalization -->
+    <param name="hist_equal" value="false" />
+
+    <!-- Enable publishing disparity image -->
+    <param name="pub_disparity" value="false" />
+
+    <!-- Enable publishing pointcloud -->
+    <param name="pub_cloud" value="false" />
+    <param name="cloud_range_max" value="5" />
+
+    <!-- Laser scan parameters -->
+    <param name="pub_laser" value="false" />
+    <param name="scan_range_min" value="0.01" />
+    <param name="scan_range_max" value="4" />
+    <param name="scan_range_def_infinity" value="true" />
+    <param name="scan_height_min" value="-30" />
+    <param name="scan_height_max" value="30" />
+
+    <!-- Enable profiling -->
+    <param name="profiling" value="false" />
+  </node>
+</launch>
+
+

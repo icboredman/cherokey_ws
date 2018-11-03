@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(camera)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   serial
   std_msgs
+  image_transport
+  cv_bridge
 )
 
 ## System dependencies are found with CMake's conventions
@@ -93,6 +95,11 @@ find_package(catkin REQUIRED COMPONENTS
 #   cfg/DynReconf2.cfg
 # )
 
+
+# list OPENCV libraries
+set( OpenCV_LIBS opencv_calib3d opencv_core opencv_features2d opencv_flann opencv_highgui opencv_imgproc opencv_ml opencv_objdetect opencv_photo opencv_stitching opencv_superres opencv_video opencv_videostab )
+
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -118,6 +125,8 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  /usr/local/include/opencv2
+  /usr/local/include/opencv
 )
 
 ## Declare a C++ library
@@ -148,6 +157,7 @@ add_executable(${PROJECT_NAME}_node src/camera.cpp)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 #############
