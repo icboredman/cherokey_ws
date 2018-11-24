@@ -57,6 +57,7 @@ class Options
   bool zoom_center;
   bool publish_rectified;
   bool histogram_equalization;
+  bool histogram_show;
   bool publish_disparity;
   bool publish_pointcloud;
   bool publish_laserscan;
@@ -87,11 +88,13 @@ class Options
     nh.param("zoom_center", zoom_center, true);
     nh.param("pub_rect", publish_rectified, false);
     nh.param("hist_equal", histogram_equalization, false);
+    nh.param("hist_show", histogram_show, false);
     nh.param("pub_disparity", publish_disparity, false);
+
     nh.param("pub_cloud", publish_pointcloud, false);
     nh.param("cloud_range_max", cloud_range_max, (float)6000);
-    nh.param("pub_laser", publish_laserscan, false);
 
+    nh.param("pub_laser", publish_laserscan, false);
     nh.param("scan_range_min", scan_range_min, (float)0);
     nh.param("scan_range_max", scan_range_max, (float)6000);
     nh.param("scan_range_def_infinity", scan_range_def_infinity, true);

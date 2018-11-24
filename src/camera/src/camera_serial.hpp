@@ -102,7 +102,8 @@ namespace serial
 
       // get row number
       uint16_t y = ((uint16_t)(lineData[0] & 0x01) << 8) | lineData[1];
-      if (y >= MAX_IMAGE_HEIGHT)
+      y -= (MAX_IMAGE_HEIGHT - config.n_lines) / 2;
+      if (y >= config.n_lines)
         return -2;
       camline = y;
 
@@ -120,7 +121,7 @@ namespace serial
         p[x] = lineData[x + sizeof(camline) + sizeof(camregs) + MAX_IMAGE_WIDTH];
 
       // check for end of frame
-      if (y == MAX_IMAGE_HEIGHT / 2 + config.n_lines / 2 - 1)
+      if (y == config.n_lines - 1)
         return 0;
       else
         return 1;

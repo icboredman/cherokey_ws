@@ -97,7 +97,16 @@ find_package(catkin REQUIRED COMPONENTS
 
 
 # list OPENCV libraries
-set( OpenCV_LIBS opencv_calib3d opencv_core opencv_features2d opencv_flann opencv_highgui opencv_imgproc opencv_ml opencv_objdetect opencv_photo opencv_stitching opencv_superres opencv_video opencv_videostab )
+set(OpenCV_LIBS opencv_calib3d opencv_core opencv_features2d opencv_flann opencv_highgui opencv_imgproc opencv_ml opencv_objdetect opencv_photo opencv_stitching opencv_superres opencv_video opencv_videostab )
+set(LIBELAS_SRC_DIR src/elas)
+set(CMAKE_CXX_FLAGS "-msse3")
+set(Boost_USE_STATIC_LIBS OFF) 
+set(Boost_USE_MULTITHREADED ON)  
+set(Boost_USE_STATIC_RUNTIME OFF) 
+find_package(Boost 1.54.0 COMPONENTS system filesystem program_options REQUIRED)
+
+
+FILE(GLOB LIBELAS_SRC_FILES "src/elas/*.cpp")
 
 
 ###################################
@@ -125,8 +134,9 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
-  /usr/local/include/opencv2
-  /usr/local/include/opencv
+  ${OpenCV_INCLUDE_DIRS}
+  ${LIBELAS_SRC_DIR}
+  ${Boost_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -142,7 +152,10 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(${PROJECT_NAME}_node src/camera.cpp)
+add_executable(${PROJECT_NAME}_node
+  src/camera.cpp
+  ${LIBELAS_SRC_FILES}
+)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

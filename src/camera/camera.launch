@@ -15,7 +15,7 @@
     <param name="usb_hwid" value="1fc9:0094" />
 
     <!-- Calibration -->
-    <param name="calibration_filename" value="/home/pi/calibration_640.txt" />
+    <param name="calibration_filename" value="/home/boredman/Documents/cherokey_ws/src/camera/camcalib.yaml" />
 
     <!-- Camera Exposure in microseconds -->
     <param name="exposure" value="10000" />
@@ -24,30 +24,32 @@
     <!-- Camera Digital gain -->
     <param name="digitalGain" value="4" />
     <!-- Camera Number of lines -->
-    <param name="numLines" value="480" />
-    <!-- Camera FPS = 50 / counts -->
-    <param name="countsPerFrame" value="50" />
+    <param name="numLines" value="200" />
+    <!-- Camera FPS = (50 / counts) -->
+    <param name="countsPerFrame" value="5" />
     <!-- Camera Auto Exposure (1 or 0)-->
-    <param name="autoExposure" value="0" />
+    <param name="autoExposure" value="1" />
     <!-- Camera Auto Gain Control (1 or 0)-->
     <param name="autoGain" value="0" />
     <!-- Camera Compounding (1 or 0)-->
     <param name="compEnable" value="0" />
 
-    <!-- Enable publishing raw left image -->
+    <!-- Enable publishing raw images -->
     <param name="pub_image" value="true" />
 
-    <!-- Enable zoomed center section of raw image -->
+    <!-- Enable zoomed center section of images -->
     <param name="zoom_center" value="false" />
-
-    <!-- Enable publishing rectified image -->
-    <param name="pub_rect" value="false" />
 
     <!-- Enable histogram equalization -->
     <param name="hist_equal" value="false" />
+    <!-- Enable histogram drawing -->
+    <param name="hist_show" value="false" />
+
+    <!-- Enable publishing rectified images -->
+    <param name="pub_rect" value="false" />
 
     <!-- Enable publishing disparity image -->
-    <param name="pub_disparity" value="false" />
+    <param name="pub_disparity" value="true" />
 
     <!-- Enable publishing pointcloud -->
     <param name="pub_cloud" value="false" />
@@ -62,8 +64,27 @@
     <param name="scan_height_max" value="30" />
 
     <!-- Enable profiling -->
-    <param name="profiling" value="false" />
+    <param name="profiling" value="true" />
   </node>
+
+  <node name="image_view_left" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/left/image" />
+  </node>
+  <node name="image_view_right" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/right/image" />
+  </node>
+
+  <node name="disparity" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/disparity" />
+  </node>
+
+<!--
+  <node name="image_stereo" pkg="image_view" type="stereo_view" respawn="false" output="screen">
+    <remap from="stereo" to="/camera" />
+    <remap from="image" to="image" />
+  </node>
+-->
+
 </launch>
 
 
