@@ -5,8 +5,8 @@
   <!-- Machine settings. See http://www.ros.org/wiki/roslaunch/XML/machine -->
   <!--machine name="local_alt" address="localhost" default="true" /-->
   <!-- stereocamera -->
-  <node pkg="camera" type="camera_node" name="camera" 
-        respawn="true" 
+  <node pkg="camera" type="camera_node" name="camera"
+        respawn="true"
         output="screen">
 
     <remap from="laserscan" to="/scan"/>
@@ -24,8 +24,8 @@
     <!-- Camera Digital gain -->
     <param name="digitalGain" value="4" />
     <!-- Camera Number of lines -->
-    <param name="numLines" value="200" />
-    <!-- Camera FPS = (50 / counts) -->
+    <param name="numLines" value="300" />
+    <!-- Camera FPS = 50 / counts = 10 fps -->
     <param name="countsPerFrame" value="5" />
     <!-- Camera Auto Exposure (1 or 0)-->
     <param name="autoExposure" value="1" />
@@ -35,24 +35,27 @@
     <param name="compEnable" value="0" />
 
     <!-- Enable publishing raw images -->
-    <param name="pub_image" value="true" />
+    <param name="pub_image" value="false" />
 
     <!-- Enable zoomed center section of images -->
     <param name="zoom_center" value="false" />
 
     <!-- Enable histogram equalization -->
-    <param name="hist_equal" value="false" />
+    <param name="hist_equal" value="true" />
     <!-- Enable histogram drawing -->
     <param name="hist_show" value="false" />
 
     <!-- Enable publishing rectified images -->
-    <param name="pub_rect" value="false" />
+    <param name="pub_rect" value="true" />
+
+    <!-- Disparity number of lines (<= numLines)-->
+    <param name="disparity_lines" value="200" />
 
     <!-- Enable publishing disparity image -->
     <param name="pub_disparity" value="true" />
 
     <!-- Enable publishing pointcloud -->
-    <param name="pub_cloud" value="false" />
+    <param name="pub_cloud" value="true" />
     <param name="cloud_range_max" value="5" />
 
     <!-- Laser scan parameters -->
@@ -67,16 +70,25 @@
     <param name="profiling" value="true" />
   </node>
 
-  <node name="image_view_left" pkg="image_view" type="image_view" respawn="false" output="screen">
-    <remap from="image" to="/camera/left/image" />
+
+<!--
+  <node name="image_raw_left" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/left/image_raw" />
   </node>
-  <node name="image_view_right" pkg="image_view" type="image_view" respawn="false" output="screen">
-    <remap from="image" to="/camera/right/image" />
+  <node name="image_raw_right" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/right/image_raw" />
+  </node>
+  <node name="image_rect_left" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/left/image_rect" />
+  </node>
+  <node name="image_rect_right" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/right/image_rect" />
   </node>
 
-  <node name="disparity" pkg="image_view" type="image_view" respawn="false" output="screen">
+  <node name="image_disparity" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera/disparity" />
   </node>
+-->
 
 <!--
   <node name="image_stereo" pkg="image_view" type="stereo_view" respawn="false" output="screen">
@@ -86,5 +98,3 @@
 -->
 
 </launch>
-
-

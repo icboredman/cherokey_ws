@@ -58,6 +58,7 @@ class Options
   bool publish_rectified;
   bool histogram_equalization;
   bool histogram_show;
+  int disparity_lines;
   bool publish_disparity;
   bool publish_pointcloud;
   bool publish_laserscan;
@@ -89,6 +90,8 @@ class Options
     nh.param("pub_rect", publish_rectified, false);
     nh.param("hist_equal", histogram_equalization, false);
     nh.param("hist_show", histogram_show, false);
+
+    nh.param("disparity_lines", disparity_lines, 480);
     nh.param("pub_disparity", publish_disparity, false);
 
     nh.param("pub_cloud", publish_pointcloud, false);
