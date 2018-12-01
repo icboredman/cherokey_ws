@@ -69,6 +69,8 @@ class Options
   int scan_height_min;
   int scan_height_max;
   bool profiling;
+  bool image_save;
+  std::string image_save_path;
 
   // Load options from ROS command line or launch file
   void LoadOptions(ros::NodeHandle& nh)
@@ -105,6 +107,9 @@ class Options
     nh.param("scan_height_max", scan_height_max, 5);
 
     nh.param("profiling", profiling, false);
+
+    nh.param("keypress_image_save", image_save, false);
+    nh.param("image_save_path", image_save_path, (std::string)"/home/user/images/");
   }
 
 };

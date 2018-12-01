@@ -1,4 +1,0 @@
-[submodule "src/cherokey/base_serial/MessageSerial"]
-	path = src/cherokey/base_serial/MessageSerial
-	url = https://github.com/icboredman/PacketSerial
-	branch = MessageSerial

@@ -107,6 +107,7 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF) 
 find_package(Boost 1.54.0 COMPONENTS system filesystem program_options REQUIRED)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 FILE(GLOB LIBELAS_SRC_FILES "src/elas/*.cpp")
 

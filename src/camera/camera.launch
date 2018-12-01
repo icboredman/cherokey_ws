@@ -35,7 +35,7 @@
     <param name="compEnable" value="0" />
 
     <!-- Enable publishing raw images -->
-    <param name="pub_image" value="false" />
+    <param name="pub_image" value="true" />
 
     <!-- Enable zoomed center section of images -->
     <param name="zoom_center" value="false" />
@@ -46,16 +46,16 @@
     <param name="hist_show" value="false" />
 
     <!-- Enable publishing rectified images -->
-    <param name="pub_rect" value="true" />
+    <param name="pub_rect" value="false" />
 
     <!-- Disparity number of lines (<= numLines)-->
     <param name="disparity_lines" value="200" />
 
     <!-- Enable publishing disparity image -->
-    <param name="pub_disparity" value="true" />
+    <param name="pub_disparity" value="false" />
 
     <!-- Enable publishing pointcloud -->
-    <param name="pub_cloud" value="true" />
+    <param name="pub_cloud" value="false" />
     <param name="cloud_range_max" value="5" />
 
     <!-- Laser scan parameters -->
@@ -67,17 +67,22 @@
     <param name="scan_height_max" value="30" />
 
     <!-- Enable profiling -->
-    <param name="profiling" value="true" />
+    <param name="profiling" value="false" />
+
+    <!-- Enable saving images on keypress ('s')-->
+    <param name="keypress_image_save" value="true" />
+    <!-- Folder to save images -->
+    <param name="image_save_path" value="/home/boredman/Documents/calib_images/" />
   </node>
 
 
-<!--
   <node name="image_raw_left" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera/left/image_raw" />
   </node>
   <node name="image_raw_right" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera/right/image_raw" />
   </node>
+<!--
   <node name="image_rect_left" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera/left/image_rect" />
   </node>

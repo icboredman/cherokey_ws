@@ -105,9 +105,25 @@ void PublishImage(image_transport::Publisher &pub, Mat &img, ros::Time &cap_time
 string FindCameraDevice(string hwid);
 void* CaptureImages(void* param);
 
+void WriteImage(Mat &img, string filestr, int file_counter);
 
 //typedef pcl::PointCloud<pcl::PointXYZ> PointCloud_t;
 
+
+#include <signal.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+
+struct termios cooked, raw;
+// quit handler
+void quit(int sig)
+{
+  (void)sig;
+  ROS_DEBUG("Restoring keyboard before shutdown");
+  tcsetattr(STDIN_FILENO, TCSANOW, &cooked);
+  ros::shutdown();
+  exit(0);
+}
 
 
 /**************************************************************
@@ -192,6 +208,26 @@ int main(int argc, char** argv)
   }
 
 
+  if (opt.image_save)
+  {
+    // register quit handler
+    signal(SIGINT,quit);
+
+    // set the console in raw mode
+    tcgetattr(STDIN_FILENO, &cooked);
+    memcpy(&raw, &cooked, sizeof(struct termios));
+    raw.c_lflag &=~ (ICANON | ECHO);
+    // Setting a new line, then end of file
+    raw.c_cc[VEOL] = 1;
+    raw.c_cc[VEOF] = 2;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+
+    ROS_INFO("Listening for keypress 's' to save images");
+  }
+  bool write_image = false;
+  int  write_image_counter = -1;
+
+
   ros::Time capture_time;
   clock_t start;
 
@@ -234,6 +270,11 @@ int main(int argc, char** argv)
         }
         PublishImage(pub_raw_l, imL, capture_time);
         PublishImage(pub_raw_r, imR, capture_time);
+        if (write_image)
+        {
+          WriteImage(imL, opt.image_save_path + "raw_left", write_image_counter);
+          WriteImage(imR, opt.image_save_path + "raw_right", write_image_counter);
+        }
       }
 
       if (opt.publish_rectified ||
@@ -251,6 +292,11 @@ int main(int argc, char** argv)
         {
           PublishImage(pub_rect_l, imLrec, capture_time);
           PublishImage(pub_rect_r, imRrec, capture_time);
+          if (write_image)
+          {
+            WriteImage(imLrec, opt.image_save_path + "rect_left", write_image_counter);
+            WriteImage(imRrec, opt.image_save_path + "rect_right", write_image_counter);
+          }
         }
 
         if (opt.publish_disparity ||
@@ -277,6 +323,8 @@ int main(int argc, char** argv)
                                                            sensor_msgs::image_encodings::BGR8,
                                                            disp_colored).toImageMsg();
             pub_disp.publish(msg);
+            if (write_image)
+              WriteImage(disp_colored, opt.image_save_path + "disparity", write_image_counter);
           }
 
           if (opt.publish_pointcloud ||
@@ -313,7 +361,7 @@ int main(int argc, char** argv)
                   cloud.points.push_back(point);
                 }
               }
-              //ROS_DEBUG_STREAM("PointCloud size: " << cloud.points.size() << endl);
+              //ROS_DEBUG_STREAM("PointCloud size: " << cloud.points.size());
 
               if (cloud.points.size() > 0)
               {
@@ -331,8 +379,28 @@ int main(int argc, char** argv)
         }
       }
 
+      if (opt.image_save)
+      {
+        write_image = false;
 
-
+        int bytesWaiting = 0;
+        ioctl(STDIN_FILENO, FIONREAD, &bytesWaiting);
+        if (bytesWaiting > 0)
+        {
+          char c;
+          // get the next event from the keyboard
+          if (read(STDIN_FILENO, &c, 1) < 0)
+          {
+            ROS_DEBUG("ERROR: read()");   //perror("read():");
+            exit(-1);
+          }
+          if (c == 's')
+          {
+            write_image = true;
+            write_image_counter++;
+          }
+        }
+      }
 
       if (opt.profiling)
       {
@@ -340,6 +408,7 @@ int main(int argc, char** argv)
       }
 
     }
+
     ros::spinOnce();
   }
 
@@ -522,6 +591,18 @@ void PublishImage(image_transport::Publisher &pub, Mat &img, ros::Time &cap_time
 }
 
 
+/** @brief Writes the given image as .PNG file.
+ *  @param img Mat object containing image
+ *  @param filestr filename including full path
+ *  @param file_counter will be appended to pathname
+ *  @return Void.
+ */
+void WriteImage(Mat &img, string filestr, int file_counter)
+{
+  string filename = filestr + "_" + to_string(file_counter) + ".png";
+  ROS_DEBUG_STREAM("Writing image to: " << filename);
+  cv::imwrite(filename, img);
+}
 
 
 /**************************************************************
