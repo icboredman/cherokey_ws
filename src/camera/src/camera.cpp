@@ -179,6 +179,8 @@ int main(int argc, char** argv)
                                      mapLx, mapLy, mapRx, mapRy,
                                      Size(serial::Camera::MAX_IMAGE_WIDTH, serial::Camera::MAX_IMAGE_HEIGHT),
                                      Size(serial::Camera::MAX_IMAGE_WIDTH, opt.camconfig.n_lines));
+    //correct -Cy in matrix Q due to different image height
+    disp2depth.at<double>(1,3) *= (double)opt.disparity_lines / (double)serial::Camera::MAX_IMAGE_HEIGHT;
     ROS_DEBUG_STREAM("Rectification done");
 
     if (opt.publish_rectified)
@@ -330,7 +332,7 @@ int main(int argc, char** argv)
           if (opt.publish_pointcloud ||
               opt.publish_laserscan)
           {
-            // 3-channel matrix containing reprojected 3D world coordinates
+            // prepare 3-channel matrix containing reprojected 3D world coordinates
             Mat im3D = cv::Mat::zeros(disp.size(), CV_32FC3);
             // convert disparity to array of 3D points
             cv::reprojectImageTo3D(disp, im3D, disp2depth);
@@ -348,9 +350,9 @@ int main(int argc, char** argv)
               pcl::PointXYZ point;
               for (int i = 0; i < pixels*3; i+=3)
               {
-                point.y = -points_image_data[i] / 1000;
-                point.z = -points_image_data[i+1] / 1000;
-                point.x = points_image_data[i+2] / 1000;
+                point.y = -points_image_data[i];
+                point.z = -points_image_data[i+1];
+                point.x = points_image_data[i+2];
 
                 if ( point.x > 0 &&
                     (fabs(point.x)+fabs(point.y)+fabs(point.z) > 0.001) &&
