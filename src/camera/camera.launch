@@ -59,12 +59,11 @@
     <param name="cloud_range_max" value="5" />
 
     <!-- Laser scan parameters -->
-    <param name="pub_laser" value="false" />
+    <param name="pub_laser" value="true" />
     <param name="scan_range_min" value="0.01" />
     <param name="scan_range_max" value="4" />
     <param name="scan_range_def_infinity" value="true" />
-    <param name="scan_height_min" value="-30" />
-    <param name="scan_height_max" value="30" />
+    <param name="scan_used_img_height" value="100" />
 
     <!-- Enable profiling -->
     <param name="profiling" value="false" />

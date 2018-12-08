@@ -67,20 +67,6 @@
 #include "camera_options.hpp"
 #include "elas/elas.h"
 
-/*
-using std::string;
-using std::exception;
-using std::cout;
-using std::cerr;
-using std::endl;
-using std::vector;
-*/
-
-
-using namespace std;
-using namespace cv;
-
-
 
 pthread_t imgCaptureThread;
 pthread_mutex_t imgCopyMutex;
@@ -98,9 +84,14 @@ void EqualizeHistogram2(Mat& image, int imgLines);
 void DrawHistogram(Mat& image, int imgLines);
 Mat GetRectificationMap(FileStorage &calib_file, Mat &lx, Mat &ly, Mat &rx, Mat &ry, Size calImgSize, Size outImgSize);
 Mat GenerateDisparityImg(Mat &left, Mat &right, int disp_rows);
-//Mat Generate3DPointArr(Mat &disp, Mat &disp2depth);
 
 void PublishImage(image_transport::Publisher &pub, Mat &img, ros::Time &cap_time);
+Mat  PublishDisparity(image_transport::Publisher &pub, Mat &disp, ros::Time &cap_time);
+void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, float max_range);
+void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
+                      float cam_center_x, float cam_focal_length, int active_img_height,
+                      float scan_range_min, float scan_range_max, bool scan_range_def_inf);
+
 
 string FindCameraDevice(string hwid);
 void* CaptureImages(void* param);
@@ -205,7 +196,7 @@ int main(int argc, char** argv)
     if (opt.publish_laserscan)
     {
       ROS_INFO("Publishing laserscan...");
-      //    pub_scan = n.advertise<sensor_msgs::LaserScan>("camera/laserscan", 1);
+      pub_scan = n.advertise<sensor_msgs::LaserScan>("camera/laserscan", 1);
     }
   }
 
@@ -305,26 +296,11 @@ int main(int argc, char** argv)
             opt.publish_pointcloud ||
             opt.publish_laserscan)
         {
-          Mat disp = GenerateDisparityImg(imLrec, imRrec, opt.disparity_lines);
+          Mat disparity = GenerateDisparityImg(imLrec, imRrec, opt.disparity_lines);
 
           if (opt.publish_disparity)
           {
-            // scale disparity image values for better visualization
-            double min;
-            double max;
-            cv::minMaxIdx(disp, &min, &max);
-            Mat disp_scaled;
-            cv::convertScaleAbs( disp, disp_scaled, 255 / ( max - min ) );
-            // colorize disparity image
-            Mat disp_colored;
-            cv::applyColorMap(disp_scaled, disp_colored, COLORMAP_JET);
-            // publish disparity image
-            std_msgs::Header header = std_msgs::Header();
-            header.stamp = capture_time;
-            sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header,
-                                                           sensor_msgs::image_encodings::BGR8,
-                                                           disp_colored).toImageMsg();
-            pub_disp.publish(msg);
+            Mat disp_colored = PublishDisparity(pub_disp, disparity, capture_time);
             if (write_image)
               WriteImage(disp_colored, opt.image_save_path + "disparity", write_image_counter);
           }
@@ -333,49 +309,20 @@ int main(int argc, char** argv)
               opt.publish_laserscan)
           {
             // prepare 3-channel matrix containing reprojected 3D world coordinates
-            Mat im3D = cv::Mat::zeros(disp.size(), CV_32FC3);
+            Mat im3D = cv::Mat::zeros(disparity.size(), CV_32FC3);
             // convert disparity to array of 3D points
-            cv::reprojectImageTo3D(disp, im3D, disp2depth);
+            cv::reprojectImageTo3D(disparity, im3D, disp2depth);
 
             if (opt.publish_pointcloud)
             {
-              pcl::PointCloud<pcl::PointXYZ> cloud;
-              cloud.header.frame_id = "camera_frame";
-              pcl_conversions::toPCL(capture_time, cloud.header.stamp);
-              cloud.points.resize(0);
-              //cloud.is_dense = true;
-
-              float *points_image_data = (float*)im3D.data;
-              int pixels = im3D.rows * im3D.cols;
-              pcl::PointXYZ point;
-              for (int i = 0; i < pixels*3; i+=3)
-              {
-                point.y = -points_image_data[i];
-                point.z = -points_image_data[i+1];
-                point.x = points_image_data[i+2];
-
-                if ( point.x > 0 &&
-                    (fabs(point.x)+fabs(point.y)+fabs(point.z) > 0.001) &&
-                    (fabs(point.x) < opt.cloud_range_max) &&
-                    (fabs(point.y) < opt.cloud_range_max) &&
-                    (fabs(point.z) < opt.cloud_range_max) )
-                {
-                  cloud.points.push_back(point);
-                }
-              }
-              //ROS_DEBUG_STREAM("PointCloud size: " << cloud.points.size());
-
-              if (cloud.points.size() > 0)
-              {
-                cloud.height = 1;
-                cloud.width = cloud.points.size();
-                pub_cloud.publish(cloud);
-              }
+              PublishPointCloud(pub_cloud, im3D, capture_time, opt.cloud_range_max);
             }
 
             if (opt.publish_laserscan)
             {
-
+              PublishLaserScan( pub_scan, im3D, capture_time,
+                                -disp2depth.at<double>(0,3), disp2depth.at<double>(2,3), opt.scan_used_img_height,
+                                opt.scan_range_min, opt.scan_range_max, opt.scan_range_def_infinity );
             }
           }
         }
@@ -554,14 +501,13 @@ Mat GetRectificationMap(FileStorage &calib_file, Mat &lx, Mat &ly, Mat &rx, Mat 
 }
 
 
-// rows_crop <-- crop source images by this many rows from top and bottom
+// disp_rows <-- crop source images from top and bottom to this many rows
 Mat GenerateDisparityImg(Mat &left, Mat &right, int disp_rows)
 {
   if (left.empty() || right.empty())
     return left;
 
-  if (disp_rows > left.rows)
-    disp_rows = left.rows;
+  assert(disp_rows <= left.rows);
 
   const Size disp_size = cv::Size(left.cols, disp_rows);
   const int32_t dims[3] = { disp_size.width,
@@ -591,6 +537,147 @@ void PublishImage(image_transport::Publisher &pub, Mat &img, ros::Time &cap_time
                                                  img).toImageMsg();
   pub.publish(msg);
 }
+
+
+Mat PublishDisparity(image_transport::Publisher &pub, Mat &disp, ros::Time &cap_time)
+{
+  // scale disparity image values for better visualization
+  double min;
+  double max;
+  cv::minMaxIdx(disp, &min, &max);
+  Mat disp_scaled;
+  cv::convertScaleAbs(disp, disp_scaled, 255 / (max - min));
+
+  // colorize disparity image
+  Mat disp_colored;
+  cv::applyColorMap(disp_scaled, disp_colored, COLORMAP_JET);
+
+  // publish disparity image
+  std_msgs::Header header = std_msgs::Header();
+  header.stamp = cap_time;
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header,
+                                                 sensor_msgs::image_encodings::BGR8,
+                                                 disp_colored).toImageMsg();
+  pub.publish(msg);
+
+  return disp_colored;
+}
+
+
+void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, float max_range)
+{
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+  cloud.header.frame_id = "camera_frame";
+  pcl_conversions::toPCL(cap_time, cloud.header.stamp);
+  cloud.points.resize(0);
+  //cloud.is_dense = true;
+
+  float *points_image_data = (float*)img3D.data;
+  int pixels = img3D.rows * img3D.cols;
+  pcl::PointXYZ point;
+  for (int i = 0; i < pixels*3; i+=3)
+  {
+    point.y = -points_image_data[i];
+    point.z = -points_image_data[i+1];
+    point.x = points_image_data[i+2];
+
+    if ( point.x > 0 &&
+        (fabs(point.x)+fabs(point.y)+fabs(point.z) > 0.001) &&
+        (fabs(point.x) < max_range) &&
+        (fabs(point.y) < max_range) &&
+        (fabs(point.z) < max_range) )
+    {
+      cloud.points.push_back(point);
+    }
+  }
+
+  if (cloud.points.size() > 0)
+  {
+    cloud.height = 1;
+    cloud.width = cloud.points.size();
+    pub.publish(cloud);
+  }
+}
+
+
+void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
+                      float cam_center_x, float cam_focal_length, int active_img_height,
+                      float scan_range_min, float scan_range_max, bool scan_range_def_inf)
+{
+  //determine amount of rays to create
+  uint32_t ranges_size = img3D.cols;
+
+  float scan_angle_min = atan2(cam_center_x-ranges_size, cam_focal_length);
+  float scan_angle_max = atan2(cam_center_x, cam_focal_length);
+  float scan_angle_increment = (scan_angle_max - scan_angle_min) / ranges_size;
+
+  sensor_msgs::LaserScan scan;
+
+  scan.header.stamp = cap_time;
+  scan.header.frame_id = "camera_frame";
+  scan.angle_min = scan_angle_min;
+  scan.angle_max = scan_angle_max;
+  scan.angle_increment = scan_angle_increment;
+  scan.time_increment = 0.0;
+  scan.range_min = scan_range_min;
+  scan.range_max = scan_range_max;
+
+  if (scan_range_def_inf)
+    scan.ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
+  else
+    scan.ranges.assign(ranges_size, scan_range_max - 0.01);
+
+  scan.intensities.resize(0);
+
+  vector<double> ranges[img3D.cols];
+
+  assert(active_img_height <= img3D.rows);
+  int start_row = (img3D.rows - active_img_height) / 2;
+  int stop_row = start_row + active_img_height;
+
+  for (int h = start_row; h < stop_row; h++)
+  {
+    // get pointer to row
+    const float *p_row = img3D.ptr<float>(h);
+    // access elements in that row
+    for (int w = 0; w < img3D.cols*3; w += 3)
+    {
+      float y = p_row[w];
+      float z = p_row[w+1];
+      float x = p_row[w+2];
+
+      double range = hypot(y,x);
+      if (range < scan_range_min)
+        continue;
+      
+      // sign in front of atan2 controls the scan direction (pos = CW; neg = CCW)
+      double angle = -atan2(y,x);
+      if (angle < scan_angle_min || angle > scan_angle_max)
+        continue;
+      
+      int index = (angle - scan_angle_min) / scan_angle_increment;
+      ranges[index].push_back(range);
+    }
+  }
+
+  for (int i = 0; i < img3D.cols; i++)
+  {
+    int length = ranges[i].size();
+    if (length == 0)
+      scan.ranges[i] = scan_range_def_inf ? std::numeric_limits<double>::infinity() : scan_range_max - 0.01;
+    else
+    {
+//      std::sort(ranges[i].begin(), ranges[i].end());
+//      double median = ranges[i].at(length/2);
+//      scan.ranges[i] = median;
+      scan.ranges[i] = std::accumulate(ranges[i].begin(), ranges[i].end(), 0.0) / ranges[i].size();
+    }
+  }
+
+  pub.publish(scan);
+
+}
+
 
 
 /** @brief Writes the given image as .PNG file.

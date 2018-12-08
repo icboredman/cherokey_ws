@@ -66,8 +66,7 @@ class Options
   float scan_range_min;
   float scan_range_max;
   bool  scan_range_def_infinity;
-  int scan_height_min;
-  int scan_height_max;
+  int   scan_used_img_height;
   bool profiling;
   bool image_save;
   std::string image_save_path;
@@ -103,8 +102,7 @@ class Options
     nh.param("scan_range_min", scan_range_min, (float)0);
     nh.param("scan_range_max", scan_range_max, (float)6000);
     nh.param("scan_range_def_infinity", scan_range_def_infinity, true);
-    nh.param("scan_height_min", scan_height_min, -5);
-    nh.param("scan_height_max", scan_height_max, 5);
+    nh.param("scan_used_img_height", scan_used_img_height, 10);
 
     nh.param("profiling", profiling, false);
 
