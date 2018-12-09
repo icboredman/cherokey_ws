@@ -222,7 +222,7 @@ int main(int argc, char** argv)
 
 
   ros::Time capture_time;
-  clock_t start;
+  clock_t clk_start, clk_image, clk_rect=-1, clk_disp=-1, clk_cloud=-1, clk_laser=-1, clk_stop;
 
   Mat imL(opt.camconfig.n_lines, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
   Mat imR(opt.camconfig.n_lines, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
@@ -232,7 +232,7 @@ int main(int argc, char** argv)
     if (got_camera_frame)
     {
       if (opt.profiling)
-        start = clock();
+        clk_start = clock();
       capture_time = ros::Time::now();
 
       // copy out images
@@ -270,6 +270,9 @@ int main(int argc, char** argv)
         }
       }
 
+      if (opt.profiling)
+        clk_image = clock();
+
       if (opt.publish_rectified ||
           opt.publish_disparity ||
           opt.publish_laserscan ||
@@ -292,6 +295,9 @@ int main(int argc, char** argv)
           }
         }
 
+        if (opt.profiling)
+          clk_rect = clock();
+
         if (opt.publish_disparity ||
             opt.publish_pointcloud ||
             opt.publish_laserscan)
@@ -304,6 +310,9 @@ int main(int argc, char** argv)
             if (write_image)
               WriteImage(disp_colored, opt.image_save_path + "disparity", write_image_counter);
           }
+
+          if (opt.profiling)
+            clk_disp = clock();
 
           if (opt.publish_pointcloud ||
               opt.publish_laserscan)
@@ -318,11 +327,17 @@ int main(int argc, char** argv)
               PublishPointCloud(pub_cloud, im3D, capture_time, opt.cloud_range_max);
             }
 
+            if (opt.profiling)
+              clk_cloud = clock();
+
             if (opt.publish_laserscan)
             {
               PublishLaserScan( pub_scan, im3D, capture_time,
                                 -disp2depth.at<double>(0,3), disp2depth.at<double>(2,3), opt.scan_used_img_height,
                                 opt.scan_range_min, opt.scan_range_max, opt.scan_range_def_infinity );
+
+              if (opt.profiling)
+                clk_laser = clock();
             }
           }
         }
@@ -353,7 +368,24 @@ int main(int argc, char** argv)
 
       if (opt.profiling)
       {
-        ROS_INFO("TIME: total=%f capture=%f cap_cntr=%ld", ((float)(clock()-start))/CLOCKS_PER_SEC, 0.0, 0L);
+        clk_stop = clock();
+        static clock_t clk_last_stop = -1;
+
+        clock_t clk_image_ = clk_start;
+        clock_t clk_rect_ = clk_image;
+        clock_t clk_disp_ = (clk_rect != -1) ? clk_rect : clk_rect_;
+        clock_t clk_cloud_ = (clk_disp != -1) ? clk_disp : clk_disp_;
+        clock_t clk_laser_ = (clk_cloud != -1) ? clk_cloud : clk_cloud_;
+
+        ROS_INFO( "TIME[ms]: image=%.2f rect=%.2f disp=%.2f cloud=%.2f laser=%.2f TOTAL=%.2f FPS=%.1f",
+                  (float)(clk_image - clk_image_) / (CLOCKS_PER_SEC / 1000),
+                  (clk_rect != -1) ? (float)(clk_rect - clk_rect_) / (CLOCKS_PER_SEC / 1000) : NAN,
+                  (clk_disp != -1) ? (float)(clk_disp - clk_disp_) / (CLOCKS_PER_SEC / 1000) : NAN,
+                  (clk_cloud != -1) ? (float)(clk_cloud - clk_cloud_) / (CLOCKS_PER_SEC / 1000) : NAN,
+                  (clk_laser != -1) ? (float)(clk_laser - clk_laser_) / (CLOCKS_PER_SEC / 1000) : NAN,
+                  (float)(clk_stop - clk_start) / (CLOCKS_PER_SEC / 1000),
+                  (clk_last_stop != -1) ? CLOCKS_PER_SEC / (float)(clk_stop - clk_last_stop) : NAN);
+        clk_last_stop = clk_stop;
       }
 
     }
@@ -517,7 +549,9 @@ Mat GenerateDisparityImg(Mat &left, Mat &right, int disp_rows)
   Mat rightdpf = Mat::zeros(disp_size, CV_32F);
 
   Elas::parameters param(Elas::ROBOTICS);
-  param.postprocess_only_left = true;
+  //param.support_threshold = 0.85;
+  //param.speckle_size = 200;
+  param.ipol_gap_width = 40;
   Elas elas(param);
   elas.process( left.ptr<uchar>((left.rows - disp_rows) / 2),
                 right.ptr<uchar>((left.rows - disp_rows) / 2),
@@ -629,7 +663,8 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
 
   scan.intensities.resize(0);
 
-  vector<double> ranges[img3D.cols];
+  uint width = img3D.cols;
+  vector<double> ranges[width];
 
   assert(active_img_height <= img3D.rows);
   int start_row = (img3D.rows - active_img_height) / 2;
@@ -640,7 +675,7 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
     // get pointer to row
     const float *p_row = img3D.ptr<float>(h);
     // access elements in that row
-    for (int w = 0; w < img3D.cols*3; w += 3)
+    for (uint w = 0; w < width*3; w += 3)
     {
       float y = p_row[w];
       float z = p_row[w+1];
@@ -655,7 +690,9 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
       if (angle < scan_angle_min || angle > scan_angle_max)
         continue;
       
-      int index = (angle - scan_angle_min) / scan_angle_increment;
+      uint index = (angle - scan_angle_min) / scan_angle_increment;
+      if (index >= width)
+        index = width - 1;
       ranges[index].push_back(range);
     }
   }
@@ -666,11 +703,11 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
     if (length == 0)
       scan.ranges[i] = scan_range_def_inf ? std::numeric_limits<double>::infinity() : scan_range_max - 0.01;
     else
-    {
-//      std::sort(ranges[i].begin(), ranges[i].end());
-//      double median = ranges[i].at(length/2);
-//      scan.ranges[i] = median;
-      scan.ranges[i] = std::accumulate(ranges[i].begin(), ranges[i].end(), 0.0) / ranges[i].size();
+    { // median works better than mean as it is less influenced by outliers
+      std::sort(ranges[i].begin(), ranges[i].end());
+      double median = ranges[i].at(length/2);
+//    double mean = std::accumulate(ranges[i].begin(), ranges[i].end(), 0.0) / ranges[i].size();
+      scan.ranges[i] = median;
     }
   }
 
