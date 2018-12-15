@@ -17,6 +17,14 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(PCL REQUIRED)
 
+find_package(OpenMP REQUIRED)
+if(OPENMP_FOUND)
+  message(STATUS "OPENMP FOUND")
+  set(OpenMP_FLAGS ${OpenMP_CXX_FLAGS})  # or if you use C: ${OpenMP_C_FLAGS}
+  set(OpenMP_LIBS gomp)
+endif()
+
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -126,6 +134,7 @@ catkin_package(
 #  LIBRARIES camera
 #  CATKIN_DEPENDS roscpp serial std_msgs
 #  DEPENDS system_lib
+  DEPENDS OpenMP
 )
 
 ###########
@@ -164,6 +173,8 @@ add_executable(${PROJECT_NAME}_node
   ${LIBELAS_SRC_FILES}
 )
 
+target_compile_options(${PROJECT_NAME}_node PRIVATE ${OpenMP_FLAGS})
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -178,6 +189,7 @@ add_executable(${PROJECT_NAME}_node
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
+  ${OpenMP_LIBS}
 )
 
 #############
