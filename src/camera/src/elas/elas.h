@@ -30,6 +30,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <stdlib.h>
 #include <vector>
 #include <emmintrin.h>
+//#define PROFILE 1
 
 // define fixed-width datatypes for Visual Studio projects
 #ifndef _MSC_VER
