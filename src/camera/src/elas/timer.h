@@ -90,17 +90,17 @@ public:
 private:
   
   std::vector<std::string>  desc;
-  std::vector<timeval>      time;
+  std::vector<timespec>     time;
   
   void push_back_time () {
-    timeval curr_time;
-    gettimeofday(&curr_time,0);
+    timespec curr_time;
+    clock_gettime(CLOCK_MONOTONIC, &curr_time);
     time.push_back(curr_time);
   }
   
-  float getTimeDifferenceMilliseconds(timeval a,timeval b) {
+  float getTimeDifferenceMilliseconds(timespec a,timespec b) {
     return ((float)(b.tv_sec -a.tv_sec ))*1e+3 +
-           ((float)(b.tv_usec-a.tv_usec))*1e-3;
+           ((float)(b.tv_nsec-a.tv_nsec))*1e-6;
   }
 };
 

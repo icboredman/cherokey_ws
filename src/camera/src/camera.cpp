@@ -60,6 +60,13 @@
 #include <pthread.h>
 
 #include <time.h>
+#define TIMESPEC_DIFF(a,b) (((float)(b.tv_sec  - a.tv_sec )) * 1e+3 +   \
+                            ((float)(b.tv_nsec - a.tv_nsec)) * 1e-6)
+#define TIMESPEC_PUSH(vec) {                    \
+  timespec curr_time;                           \
+  clock_gettime(CLOCK_MONOTONIC, &curr_time);   \
+  vec.push_back(curr_time);                     \
+}
 // OS Specific sleep
 //#include <unistd.h>
 
@@ -222,7 +229,7 @@ int main(int argc, char** argv)
 
 
   ros::Time capture_time;
-  clock_t clk_start, clk_image, clk_rect=-1, clk_disp=-1, clk_cloud=-1, clk_laser=-1, clk_stop;
+  std::vector<timespec> timer;
 
   Mat imL(opt.camconfig.n_lines, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
   Mat imR(opt.camconfig.n_lines, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
@@ -232,7 +239,7 @@ int main(int argc, char** argv)
     if (got_camera_frame)
     {
       if (opt.profiling)
-        clk_start = clock();
+        TIMESPEC_PUSH(timer);
       capture_time = ros::Time::now();
 
       // copy out images
@@ -271,7 +278,7 @@ int main(int argc, char** argv)
       }
 
       if (opt.profiling)
-        clk_image = clock();
+        TIMESPEC_PUSH(timer);
 
       if (opt.publish_rectified ||
           opt.publish_disparity ||
@@ -296,7 +303,7 @@ int main(int argc, char** argv)
         }
 
         if (opt.profiling)
-          clk_rect = clock();
+          TIMESPEC_PUSH(timer);
 
         if (opt.publish_disparity ||
             opt.publish_pointcloud ||
@@ -312,7 +319,7 @@ int main(int argc, char** argv)
           }
 
           if (opt.profiling)
-            clk_disp = clock();
+            TIMESPEC_PUSH(timer);
 
           if (opt.publish_pointcloud ||
               opt.publish_laserscan)
@@ -328,7 +335,7 @@ int main(int argc, char** argv)
             }
 
             if (opt.profiling)
-              clk_cloud = clock();
+              TIMESPEC_PUSH(timer);
 
             if (opt.publish_laserscan)
             {
@@ -337,7 +344,7 @@ int main(int argc, char** argv)
                                 opt.scan_range_min, opt.scan_range_max, opt.scan_range_def_infinity );
 
               if (opt.profiling)
-                clk_laser = clock();
+                TIMESPEC_PUSH(timer);
             }
           }
         }
@@ -368,24 +375,19 @@ int main(int argc, char** argv)
 
       if (opt.profiling)
       {
-        clk_stop = clock();
-        static clock_t clk_last_stop = -1;
+        static timespec stop_time, last_stop_time;
+        clock_gettime(CLOCK_MONOTONIC, &stop_time);
 
-        clock_t clk_image_ = clk_start;
-        clock_t clk_rect_ = clk_image;
-        clock_t clk_disp_ = (clk_rect != -1) ? clk_rect : clk_rect_;
-        clock_t clk_cloud_ = (clk_disp != -1) ? clk_disp : clk_disp_;
-        clock_t clk_laser_ = (clk_cloud != -1) ? clk_cloud : clk_cloud_;
-
-        ROS_INFO( "TIME[ms]: image=%.2f rect=%.2f disp=%.2f cloud=%.2f laser=%.2f TOTAL=%.2f FPS=%.1f",
-                  (float)(clk_image - clk_image_) / (CLOCKS_PER_SEC / 1000),
-                  (clk_rect != -1) ? (float)(clk_rect - clk_rect_) / (CLOCKS_PER_SEC / 1000) : NAN,
-                  (clk_disp != -1) ? (float)(clk_disp - clk_disp_) / (CLOCKS_PER_SEC / 1000) : NAN,
-                  (clk_cloud != -1) ? (float)(clk_cloud - clk_cloud_) / (CLOCKS_PER_SEC / 1000) : NAN,
-                  (clk_laser != -1) ? (float)(clk_laser - clk_laser_) / (CLOCKS_PER_SEC / 1000) : NAN,
-                  (float)(clk_stop - clk_start) / (CLOCKS_PER_SEC / 1000),
-                  (clk_last_stop != -1) ? CLOCKS_PER_SEC / (float)(clk_stop - clk_last_stop) : NAN);
-        clk_last_stop = clk_stop;
+        ROS_INFO( "TIME[ms]: image=%.1f rect=%.1f disp=%.1f cloud=%.1f laser=%.1f TOTAL=%.1f FPS=%.1f",
+                  TIMESPEC_DIFF(timer[0], timer[1]),
+                  timer.size() > 2 ? TIMESPEC_DIFF(timer[1], timer[2]) : NAN,
+                  timer.size() > 3 ? TIMESPEC_DIFF(timer[2], timer[3]) : NAN,
+                  timer.size() > 4 ? TIMESPEC_DIFF(timer[3], timer[4]) : NAN,
+                  timer.size() > 5 ? TIMESPEC_DIFF(timer[4], timer[5]) : NAN,
+                  TIMESPEC_DIFF(timer[0], stop_time),
+                  1000.0 / TIMESPEC_DIFF(last_stop_time, stop_time) );
+        last_stop_time = stop_time;
+        timer.clear();
       }
 
     }
