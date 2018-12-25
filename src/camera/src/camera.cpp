@@ -60,8 +60,15 @@
 #include <pthread.h>
 
 #include <time.h>
-#define TIMESPEC_DIFF(a,b) (((float)(b.tv_sec  - a.tv_sec )) * 1e+3 +   \
-                            ((float)(b.tv_nsec - a.tv_nsec)) * 1e-6)
+#define TIMESPEC_ADD_MS(t,ms) {   \
+  t.tv_nsec += ms * 1000000;      \
+  if (t.tv_nsec >= 1000000000) {  \
+    t.tv_nsec -= 1000000000;      \
+    t.tv_sec++;                   \
+  }                               \
+}
+#define TIMESPEC_DIFF_MS(a,b) (((float)(b.tv_sec  - a.tv_sec )) * 1e+3 +   \
+                               ((float)(b.tv_nsec - a.tv_nsec)) * 1e-6)
 #define TIMESPEC_PUSH(vec) {                    \
   timespec curr_time;                           \
   clock_gettime(CLOCK_MONOTONIC, &curr_time);   \
@@ -82,7 +89,7 @@ pthread_mutex_t imgCopyMutex;
 //Mat imageL(serial::Camera::MAX_IMAGE_HEIGHT, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
 Mat imageR, imageL;
 
-bool got_camera_frame = false;
+volatile bool got_camera_frame = false;
 
 
 void ZoomCenter(Mat& image, int size, int factor);
@@ -94,9 +101,12 @@ Mat GenerateDisparityImg(Mat &left, Mat &right, int disp_rows);
 
 void PublishImage(image_transport::Publisher &pub, Mat &img, ros::Time &cap_time);
 Mat  PublishDisparity(image_transport::Publisher &pub, Mat &disp, ros::Time &cap_time);
-void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, float max_range);
+void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
+                       int used_img_lines, float clearance_top, float clearance_bot,
+                       float max_range);
 void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
-                      float cam_center_x, float cam_focal_length, int active_img_height,
+                      float cam_center_x, float cam_focal_length,
+                      int used_img_lines, float clearance_top, float clearance_bot,
                       float scan_range_min, float scan_range_max, bool scan_range_def_inf);
 
 
@@ -138,8 +148,6 @@ int main(int argc, char** argv)
   if (pthread_create(&imgCaptureThread, NULL, &CaptureImages, (void*)&opt) != 0)
   {
     ROS_ERROR_STREAM("Couldn't create Camera THREAD");
-//    cvReleaseImage(&l);
-//    cvReleaseImage(&r);
     exit(1);
   }
 
@@ -246,14 +254,17 @@ int main(int argc, char** argv)
       pthread_mutex_lock(&imgCopyMutex);
       imageR.copyTo(imR);
       imageL.copyTo(imL);
-      pthread_mutex_unlock(&imgCopyMutex);
-      // clear flag
       got_camera_frame = false;
+      pthread_mutex_unlock(&imgCopyMutex);
 
       if (opt.histogram_equalization)
       {
-        EqualizeHistogram2(imL, opt.camconfig.n_lines);
-        EqualizeHistogram2(imR, opt.camconfig.n_lines);
+        Ptr<CLAHE> clahe = createCLAHE();
+        clahe->setClipLimit(2);
+        clahe->apply(imL, imL);
+        clahe->apply(imR, imR);
+        //cv::equalizeHist(imL, imL);
+        //cv::equalizeHist(imR, imR);
       }
 
       if (opt.publish_raw_image)
@@ -331,7 +342,9 @@ int main(int argc, char** argv)
 
             if (opt.publish_pointcloud)
             {
-              PublishPointCloud(pub_cloud, im3D, capture_time, opt.cloud_range_max);
+              PublishPointCloud(pub_cloud, im3D, capture_time,
+                                opt.img3d_lines, opt.z_clearance_above, opt.z_clearance_below,
+                                opt.cloud_range_max);
             }
 
             if (opt.profiling)
@@ -340,7 +353,8 @@ int main(int argc, char** argv)
             if (opt.publish_laserscan)
             {
               PublishLaserScan( pub_scan, im3D, capture_time,
-                                -disp2depth.at<double>(0,3), disp2depth.at<double>(2,3), opt.scan_used_img_height,
+                                -disp2depth.at<double>(0,3), disp2depth.at<double>(2,3),
+                                opt.img3d_lines, opt.z_clearance_above, opt.z_clearance_below,
                                 opt.scan_range_min, opt.scan_range_max, opt.scan_range_def_infinity );
 
               if (opt.profiling)
@@ -379,17 +393,23 @@ int main(int argc, char** argv)
         clock_gettime(CLOCK_MONOTONIC, &stop_time);
 
         ROS_INFO( "TIME[ms]: image=%.1f rect=%.1f disp=%.1f cloud=%.1f laser=%.1f TOTAL=%.1f FPS=%.1f",
-                  TIMESPEC_DIFF(timer[0], timer[1]),
-                  timer.size() > 2 ? TIMESPEC_DIFF(timer[1], timer[2]) : NAN,
-                  timer.size() > 3 ? TIMESPEC_DIFF(timer[2], timer[3]) : NAN,
-                  timer.size() > 4 ? TIMESPEC_DIFF(timer[3], timer[4]) : NAN,
-                  timer.size() > 5 ? TIMESPEC_DIFF(timer[4], timer[5]) : NAN,
-                  TIMESPEC_DIFF(timer[0], stop_time),
-                  1000.0 / TIMESPEC_DIFF(last_stop_time, stop_time) );
+                  TIMESPEC_DIFF_MS(timer[0], timer[1]),
+                  timer.size() > 2 ? TIMESPEC_DIFF_MS(timer[1], timer[2]) : NAN,
+                  timer.size() > 3 ? TIMESPEC_DIFF_MS(timer[2], timer[3]) : NAN,
+                  timer.size() > 4 ? TIMESPEC_DIFF_MS(timer[3], timer[4]) : NAN,
+                  timer.size() > 5 ? TIMESPEC_DIFF_MS(timer[4], timer[5]) : NAN,
+                  TIMESPEC_DIFF_MS(timer[0], stop_time),
+                  1000.0 / TIMESPEC_DIFF_MS(last_stop_time, stop_time) );
         last_stop_time = stop_time;
         timer.clear();
       }
 
+    }
+
+    if (ros::Time::now() - capture_time > ros::Duration(5.0))
+    {
+      ROS_ERROR("Camera thread seems to have stopped");
+      exit(3);
     }
 
     ros::spinOnce();
@@ -412,44 +432,6 @@ void ZoomCenter(Mat& image, int size, int factor)
 			image.at<uint8_t>(image.rows/2 - size/2 + y, image.cols/2 - size/2 + x) = region.at<uint8_t>(y, x);
 }
 
-void EqualizeHistogram1(Mat& image, int imgLines)
-{
-	Mat mSrc(imgLines, image.cols, CV_8UC1, Scalar(0));
-	// limit height and copy:
-	for (int y = 0; y < imgLines; y++)
-		for (int x = 0; x < image.cols; x++)
-			mSrc.at<uint8_t>(y, x) = image.at<uint8_t>(y + (image.rows - imgLines) / 2, x);
-
-	// do equalization:
-	Mat mDst(imgLines, image.cols, CV_8UC1, Scalar(0));
-	cv::equalizeHist(mSrc, mDst);
-
-	// copy back:
-	for (int y = 0; y < imgLines; y++)
-		for (int x = 0; x < image.cols; x++)
-			image.at<uint8_t>(y + (image.rows - imgLines) / 2, x) = mDst.at<uint8_t>(y, x);
-}
-
-void EqualizeHistogram2(Mat& image, int imgLines)
-{
-	Mat mSrc(imgLines, image.cols, CV_8UC1, Scalar(0));
-	// limit height and copy:
-	for (int y = 0; y < imgLines; y++)
-		for (int x = 0; x < image.cols; x++)
-			mSrc.at<uint8_t>(y, x) = image.at<uint8_t>(y + (image.rows - imgLines) / 2, x);
-
-	// do equalization:
-	Mat mDst;
-	Ptr<CLAHE> clahe = createCLAHE();
-	clahe->setClipLimit(2);
-	clahe->apply(mSrc, mDst);
-
-	// copy back:
-	for (int y = 0; y < imgLines; y++)
-		for (int x = 0; x < image.cols; x++)
-			image.at<uint8_t>(y + (image.rows - imgLines) / 2, x) = mDst.at<uint8_t>(y, x);
-
-}
 
 void DrawHistogram(Mat& image, int imgLines)
 {
@@ -600,7 +582,9 @@ Mat PublishDisparity(image_transport::Publisher &pub, Mat &disp, ros::Time &cap_
 }
 
 
-void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, float max_range)
+void PublishPointCloud( ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
+                        int used_img_lines, float clearance_top, float clearance_bot,
+                        float max_range)
 {
   pcl::PointCloud<pcl::PointXYZ> cloud;
   cloud.header.frame_id = "camera_frame";
@@ -608,22 +592,28 @@ void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, flo
   cloud.points.resize(0);
   //cloud.is_dense = true;
 
-  float *points_image_data = (float*)img3D.data;
-  int pixels = img3D.rows * img3D.cols;
-  pcl::PointXYZ point;
-  for (int i = 0; i < pixels*3; i+=3)
-  {
-    point.y = -points_image_data[i];
-    point.z = -points_image_data[i+1];
-    point.x = points_image_data[i+2];
+  assert(used_img_lines <= img3D.rows);
+  int start_row = (img3D.rows - used_img_lines) / 2;
+  int stop_row = start_row + used_img_lines;
 
-    if ( point.x > 0 &&
-        (fabs(point.x)+fabs(point.y)+fabs(point.z) > 0.001) &&
-        (fabs(point.x) < max_range) &&
-        (fabs(point.y) < max_range) &&
-        (fabs(point.z) < max_range) )
+  for (int h = start_row; h < stop_row; h++)
+  {
+    // get pointer to row
+    const float *p_row = img3D.ptr<float>(h);
+    // access elements in that row
+    for (uint w = 0; w < img3D.cols*3; w += 3)
     {
-      cloud.points.push_back(point);
+      pcl::PointXYZ point;
+
+      point.y = -p_row[w];
+      point.z = -p_row[w+1];
+      point.x = p_row[w+2];
+
+      if (point.x >= 0 && point.x <= max_range &&
+          point.z >= -clearance_bot && point.z <= clearance_top)
+      {
+        cloud.points.push_back(point);
+      }
     }
   }
 
@@ -637,7 +627,8 @@ void PublishPointCloud(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time, flo
 
 
 void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
-                      float cam_center_x, float cam_focal_length, int active_img_height,
+                      float cam_center_x, float cam_focal_length,
+                      int used_img_lines, float clearance_top, float clearance_bot,
                       float scan_range_min, float scan_range_max, bool scan_range_def_inf)
 {
   //determine amount of rays to create
@@ -668,10 +659,11 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
   uint width = img3D.cols;
   vector<double> ranges[width];
 
-  assert(active_img_height <= img3D.rows);
-  int start_row = (img3D.rows - active_img_height) / 2;
-  int stop_row = start_row + active_img_height;
+  assert(used_img_lines <= img3D.rows);
+  int start_row = (img3D.rows - used_img_lines) / 2;
+  int stop_row = start_row + used_img_lines;
 
+  // calculate angles and distances to all points in 3D array
   for (int h = start_row; h < stop_row; h++)
   {
     // get pointer to row
@@ -679,19 +671,22 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
     // access elements in that row
     for (uint w = 0; w < width*3; w += 3)
     {
-      float y = p_row[w];
-      float z = p_row[w+1];
+      float y = -p_row[w];
+      float z = -p_row[w+1];
       float x = p_row[w+2];
+
+      if (z < -clearance_bot || z > clearance_top)
+        continue;
 
       double range = hypot(y,x);
       if (range < scan_range_min)
         continue;
-      
-      // sign in front of atan2 controls the scan direction (pos = CW; neg = CCW)
-      double angle = -atan2(y,x);
+
+      // sign in front of atan2 controls the scan direction (pos = CCW; neg = CW)
+      double angle = atan2(y,x);
       if (angle < scan_angle_min || angle > scan_angle_max)
         continue;
-      
+
       uint index = (angle - scan_angle_min) / scan_angle_increment;
       if (index >= width)
         index = width - 1;
@@ -699,17 +694,44 @@ void PublishLaserScan(ros::Publisher &pub, Mat &img3D, ros::Time &cap_time,
     }
   }
 
-  for (int i = 0; i < img3D.cols; i++)
+  // convert ranges (3D) to a flat line (2D)
+  for (int y = 0; y < width; y++)
   {
-    int length = ranges[i].size();
+    int length = ranges[y].size();
     if (length == 0)
-      scan.ranges[i] = scan_range_def_inf ? std::numeric_limits<double>::infinity() : scan_range_max - 0.01;
+      scan.ranges[y] = scan_range_def_inf ? std::numeric_limits<double>::infinity() : scan_range_max - 0.01;
     else
     { // median works better than mean as it is less influenced by outliers
-      std::sort(ranges[i].begin(), ranges[i].end());
-      double median = ranges[i].at(length/2);
-//    double mean = std::accumulate(ranges[i].begin(), ranges[i].end(), 0.0) / ranges[i].size();
-      scan.ranges[i] = median;
+//      std::sort(ranges[y].begin(), ranges[y].end());
+//      double median = ranges[y].at(length/2);
+//      scan.ranges[y] = median;
+      //double mean = std::accumulate(ranges[y].begin(), ranges[y].end(), 0.0) / ranges[y].size();
+      //scan.ranges[y] = mean;
+//      double min = *std::min_element(ranges[y].begin(), ranges[y].end());
+//      scan.ranges[y] = min;
+      std::vector<float> cluster;
+      std::vector<float> collection;
+      float range_this = ranges[y].at(0);
+      float range_last = range_this;
+      cluster.push_back(range_this);
+      // categorize all points into clusters, based on their relative distance from each other
+      for (int z = 1; z < ranges[y].size(); z++)
+      {
+        range_this = ranges[y].at(z);
+        if (abs(range_this - range_last) > range_this * 0.1)
+        { // calculate average of current cluster and save it
+          float mean = std::accumulate(cluster.begin(), cluster.end(), 0.0) / cluster.size();
+          collection.push_back(mean);
+          cluster.clear();
+        }
+        cluster.push_back(range_this);
+        range_last = range_this;
+      }
+      float mean = std::accumulate(cluster.begin(), cluster.end(), 0.0) / cluster.size();
+      collection.push_back(mean);
+      // return lowest average of all clusters
+      float min = *std::min_element(collection.begin(), collection.end());
+      scan.ranges[y] = min;
     }
   }
 
@@ -751,7 +773,7 @@ void* CaptureImages(void* param)
   ROS_DEBUG_STREAM("Camera found on port " << port);
 
   // configure camera serial port
-  serial::Camera camera(port, 115200, serial::Timeout(2,10,0,250,0));
+  serial::Camera camera(port, 115200, serial::Timeout(0,10,0,250,0));
   ROS_DEBUG_STREAM("Camera port configured");
 
   if (!camera.isOpen())
@@ -774,14 +796,21 @@ void* CaptureImages(void* param)
   {
     if (camera.RecvLine(imgR, imgL) == 0)
     {
+      // save time of last complete frame capture
+      timespec time;
+      clock_gettime(CLOCK_MONOTONIC, &time);
+
       pthread_mutex_lock(&imgCopyMutex);
       imgR.copyTo(imageR);
       imgL.copyTo(imageL);
       got_camera_frame = true;
       pthread_mutex_unlock(&imgCopyMutex);
-      // blank out temp images
-      //imgR.setTo(Scalar(0));
-      //imgL.setTo(Scalar(0));
+
+      // suspend thread until just before next frame should arrive
+      // cpf * (1000 ms / 50 FPS) - 50 ms margin
+      long ms = opt->camconfig.cpf * (1000 / 50) - 50;
+      TIMESPEC_ADD_MS(time, ms);
+      clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time, &time);
     }
 
   }

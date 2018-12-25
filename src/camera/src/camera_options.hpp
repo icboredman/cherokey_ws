@@ -60,13 +60,15 @@ class Options
   bool histogram_show;
   int disparity_lines;
   bool publish_disparity;
+  int   img3d_lines;
+  float z_clearance_above;
+  float z_clearance_below;
   bool publish_pointcloud;
   bool publish_laserscan;
   float cloud_range_max;
   float scan_range_min;
   float scan_range_max;
   bool  scan_range_def_infinity;
-  int   scan_used_img_height;
   bool profiling;
   bool image_save;
   std::string image_save_path;
@@ -95,14 +97,17 @@ class Options
     nh.param("disparity_lines", disparity_lines, 480);
     nh.param("pub_disparity", publish_disparity, false);
 
+    nh.param("image3d_lines", img3d_lines, 480);
+    nh.param("z_clearance_above", z_clearance_above, (float)5.0);
+    nh.param("z_clearance_below", z_clearance_below, (float)5.0);
+
     nh.param("pub_cloud", publish_pointcloud, false);
-    nh.param("cloud_range_max", cloud_range_max, (float)6000);
+    nh.param("cloud_range_max", cloud_range_max, (float)6.0);
 
     nh.param("pub_laser", publish_laserscan, false);
     nh.param("scan_range_min", scan_range_min, (float)0);
-    nh.param("scan_range_max", scan_range_max, (float)6000);
+    nh.param("scan_range_max", scan_range_max, (float)6.0);
     nh.param("scan_range_def_infinity", scan_range_def_infinity, true);
-    nh.param("scan_used_img_height", scan_used_img_height, 10);
 
     nh.param("profiling", profiling, false);
 

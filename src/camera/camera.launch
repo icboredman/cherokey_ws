@@ -49,10 +49,16 @@
     <param name="pub_rect" value="true" />
 
     <!-- Disparity number of lines (<= numLines)-->
-    <param name="disparity_lines" value="200" />
+    <param name="disparity_lines" value="250" />
 
     <!-- Enable publishing disparity image -->
     <param name="pub_disparity" value="true" />
+
+    <!-- below three parameters are used in both PointCloud and LaserScan -->
+    <param name="image3d_lines" value="250" />
+    <!-- Clearance above and below the plane of optical axis -->
+    <param name="z_clearance_above" value="0.10" />
+    <param name="z_clearance_below" value="0.15" />
 
     <!-- Enable publishing pointcloud -->
     <param name="pub_cloud" value="true" />
@@ -63,8 +69,7 @@
     <param name="scan_range_min" value="0.01" />
     <param name="scan_range_max" value="4" />
     <param name="scan_range_def_infinity" value="true" />
-    <param name="scan_used_img_height" value="100" />
-
+    
     <!-- Enable profiling -->
     <param name="profiling" value="true" />
 
