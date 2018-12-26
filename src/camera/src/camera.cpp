@@ -60,13 +60,6 @@
 #include <pthread.h>
 
 #include <time.h>
-#define TIMESPEC_ADD_MS(t,ms) {   \
-  t.tv_nsec += ms * 1000000;      \
-  if (t.tv_nsec >= 1000000000) {  \
-    t.tv_nsec -= 1000000000;      \
-    t.tv_sec++;                   \
-  }                               \
-}
 #define TIMESPEC_DIFF_MS(a,b) (((float)(b.tv_sec  - a.tv_sec )) * 1e+3 +   \
                                ((float)(b.tv_nsec - a.tv_nsec)) * 1e-6)
 #define TIMESPEC_PUSH(vec) {                    \
@@ -236,7 +229,7 @@ int main(int argc, char** argv)
   int  write_image_counter = -1;
 
 
-  ros::Time capture_time;
+  ros::Time capture_time = ros::Time::now();
   std::vector<timespec> timer;
 
   Mat imL(opt.camconfig.n_lines, serial::Camera::MAX_IMAGE_WIDTH, CV_8UC1, Scalar(0));
@@ -406,7 +399,7 @@ int main(int argc, char** argv)
 
     }
 
-    if (ros::Time::now() - capture_time > ros::Duration(5.0))
+    if ((ros::Time::now() - capture_time) > ros::Duration(5))
     {
       ROS_ERROR("Camera thread seems to have stopped");
       exit(3);
@@ -772,8 +765,9 @@ void* CaptureImages(void* param)
   }
   ROS_DEBUG_STREAM("Camera found on port " << port);
 
-  // configure camera serial port
-  serial::Camera camera(port, 115200, serial::Timeout(0,10,0,250,0));
+  // setting both inter_byte_timeout and read_timeout_constant
+  // enables thread suspension between bursts of data
+  serial::Camera camera(port, 115200, serial::Timeout(100,100,0,250,0));
   ROS_DEBUG_STREAM("Camera port configured");
 
   if (!camera.isOpen())
@@ -796,21 +790,11 @@ void* CaptureImages(void* param)
   {
     if (camera.RecvLine(imgR, imgL) == 0)
     {
-      // save time of last complete frame capture
-      timespec time;
-      clock_gettime(CLOCK_MONOTONIC, &time);
-
       pthread_mutex_lock(&imgCopyMutex);
       imgR.copyTo(imageR);
       imgL.copyTo(imageL);
       got_camera_frame = true;
       pthread_mutex_unlock(&imgCopyMutex);
-
-      // suspend thread until just before next frame should arrive
-      // cpf * (1000 ms / 50 FPS) - 50 ms margin
-      long ms = opt->camconfig.cpf * (1000 / 50) - 50;
-      TIMESPEC_ADD_MS(time, ms);
-      clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time, &time);
     }
 
   }
