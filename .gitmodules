@@ -1,7 +1,0 @@
-[submodule "src/minorucam/src/v4l2stereo_no_sse"]
-	path = src/minorucam/src/v4l2stereo_no_sse
-	url = https://github.com/icboredman/v4l2stereo_no_sse
-[submodule "src/cherokey/base_serial/MessageSerial"]
-	path = src/cherokey/base_serial/MessageSerial
-	url = https://github.com/icboredman/PacketSerial
-	branch = MessageSerial
