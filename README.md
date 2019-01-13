@@ -5,7 +5,8 @@ A [ROS](http://www.ros.org) workspace that implements a configuration of ROS Nav
 ### Components (nodes):
 
 * [camera_node](https://github.com/icboredman/camera_node.git) - stereo camera driver for [TeensyCam](https://github.com/icboredman/TeensyCam-HW)
-* 
+* [base_serial_node](https://github.com/icboredman/base_serial_node.git) - communication with base
+*
 *
 
 
