@@ -1,3 +1,6 @@
 [submodule "src/camera_node"]
 	path = src/camera_node
 	url = https://github.com/icboredman/camera_node.git
+[submodule "src/base_serial_node"]
+	path = src/base_serial_node
+	url = https://github.com/icboredman/base_serial_node.git
