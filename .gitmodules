@@ -4,3 +4,6 @@
 [submodule "src/base_serial_node"]
 	path = src/base_serial_node
 	url = https://github.com/icboredman/base_serial_node.git
+[submodule "src/teleop_key_node"]
+	path = src/teleop_key_node
+	url = https://github.com/icboredman/teleop_key_node.git
