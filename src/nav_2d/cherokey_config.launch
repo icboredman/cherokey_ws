@@ -1,8 +1,9 @@
 <launch>
 
+  <remap from="camera/laserscan" to="scan" />
   <include file="$(find camera)/camera.launch" />
 
-  <node pkg="base_serial" type="base_serial" name="base_serial_node" output="screen" />
+  <node pkg="base_serial" type="base_serial_node" name="base_serial_node" output="screen" />
 
   <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0 0 0 0 0 0 base_link camera_frame 1000" />
 

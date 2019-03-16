@@ -1,0 +1,20 @@
+<launch>
+  <master auto="start"/>
+
+  <!-- Run the map server -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find nav_2d)/map/plan.yaml"/>
+
+  <!--- Run AMCL -->
+  <include file="$(find nav_2d)/amcl_diff.launch" />
+<!--- use static map instead
+  <node pkg="tf" type="static_transform_publisher" name="odom2map" args="-1 0 0 2.27 0 0 map odom 100"/>
+-->
+  
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <rosparam file="$(find nav_2d)/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find nav_2d)/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find nav_2d)/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find nav_2d)/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find nav_2d)/base_local_planner_params.yaml" command="load" />
+  </node>
+</launch>
