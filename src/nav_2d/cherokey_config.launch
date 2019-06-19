@@ -1,6 +1,8 @@
 <launch>
 
+<!--
   <remap from="camera/laserscan" to="scan" />
+-->
   <include file="$(find camera)/camera.launch" />
 
   <node pkg="base_serial" type="base_serial_node" name="base_serial_node" output="screen" />
