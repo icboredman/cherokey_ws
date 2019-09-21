@@ -1,70 +1,38 @@
 <launch>
   <master auto="start"/>
 
-  <env name="ROSCONSOLE_CONFIG_FILE"
-       value="$(find nav_rtabmap)/custom_rosconsole.config"/>
+  <param name="use_sim_time"  value="true" />
 
-  <group ns="base_controller">
-    <include file="$(find nav_rtabmap)/base_start.launch" />
-
-    <arg name="pi/2" value="1.5707963267948966" />
-    <!-- camera pointing forward -->
-    <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0.03 0.04 0.185 -$(arg pi/2) 0 -$(arg pi/2) base_link camera_frame 10" />
-    <node pkg="tf" type="static_transform_publisher" name="laser2base"  args="0.03 0.04 0.185 0 0 0 base_link laser_frame 10" />
-
-    <!-- camera pointing starboard -->
-<!--
-    <arg name="pi" value="3.14159265358979" />
-    <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0.09 0.08 0.185 -$(arg pi) 0 -$(arg pi/2) base_link camera_frame 10" />
--->
-  </group>
-
-
-  <!-- ROS navigation stack move_base -->
-  <group ns="planner">
-    <remap from="scan"                  to="/base_controller/camera/laserscan"/>
-    <remap from="cmd_vel"               to="/base_controller/cmd_vel"/>
-    <remap from="odom"                  to="/base_controller/odom"/>
-    <remap from="map"                   to="/rtabmap/grid_map"/>
-
-    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
-      <rosparam file="$(find nav_rtabmap)/costmap_common_params.yaml" command="load" ns="global_costmap" />
-      <rosparam file="$(find nav_rtabmap)/costmap_common_params.yaml" command="load" ns="local_costmap" />
-      <rosparam file="$(find nav_rtabmap)/local_costmap_params.yaml" command="load" />
-      <rosparam file="$(find nav_rtabmap)/global_costmap_params.yaml" command="load" />
-      <rosparam file="$(find nav_rtabmap)/move_base_params.yaml" command="load" />
-      <rosparam file="$(find nav_rtabmap)/navfn_global_planner_params.yaml" command="load" />
-      <rosparam file="$(find nav_rtabmap)/dwa_local_planner_params.yaml" command="load" />
-    </node>
-  </group>
-
+  <arg name="pi/2" value="1.5707963267948966" />
+  <!-- camera pointing forward -->
+  <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0.03 0.04 0.185 -$(arg pi/2) 0 -$(arg pi/2) base_link camera_frame 10" />
 
   <group ns="rtabmap">
     <node pkg="nodelet" type="nodelet" name="rgbd_sync" args="standalone rtabmap_ros/rgbd_sync" output="screen">
-      <remap from="rgb/image"       to="/base_controller/camera/left/image_rect"/>
-      <remap from="depth/image"     to="/base_controller/camera/depth"/>
-      <remap from="rgb/camera_info" to="/base_controller/camera/left/camera_info"/>
+      <remap from="rgb/image"       to="/camera/left/image_rect"/>
+      <remap from="depth/image"     to="/camera/depth"/>
+      <remap from="rgb/camera_info" to="/camera/left/camera_info"/>
       <remap from="rgbd_image"      to="rgbd_image"/>  <!-- output -->
       
       <!-- all camera topics are exactly synchronized -->
       <param name="approx_sync"       value="false"/>
     </node>
 
-    <node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="">
+    <node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="--delete_db_on_start">
           <param name="frame_id" type="string" value="base_link"/>
 
           <param name="subscribe_depth" type="bool" value="false"/>
+          <param name="subscribe_rgb"   type="bool" value="false"/>
           <param name="subscribe_rgbd"  type="bool" value="true"/>
           <param name="approx_sync"     type="bool" value="true"/>
           <param name="queue_size"      type="int"  value="30"/>
 
-          <param name="database_path" type="string" value="~/Documents/RTAB-Map/database-append-halfrate-SURF300-refined.db"/>
-
-          <remap from="odom" to="/base_controller/odom"/>
+          <remap from="odom" to="/odom"/>
           <remap from="rgbd_image" to="rgbd_image"/>
 
-          <!-- LOCALIZATION MODE -->
-          <param name="Mem/IncrementalMemory"     type="string" value="false"/>
+          <!-- RTAB-Map's parameters -->
+          <param name="Rtabmap/DetectionRate"      type="string" value="0"/>  <!-- no filtering, processing done at the speed of incoming data -->
+          <param name="Rtabmap/TimeThr"            type="string" value="0"/>  <!-- offline works much faster -->
 
           <param name="RGBD/AngularUpdate"         type="string" value="0.01"/>
           <param name="RGBD/LinearUpdate"          type="string" value="0.01"/>
@@ -102,6 +70,28 @@
           <param name="Grid/FromDepth"             type="string" value="true" />
 
     </node>
-  </group>
 
+    <!-- Visualisation RTAB-Map -->
+    <!--node pkg="rtabmap_ros" type="rtabmapviz" name="rtabmapviz" output="screen"-->
+    <node pkg="rtabmap_ros" type="rtabmapviz" name="rtabmapviz" args="-d /home/boredman/.ros/rtabmapGUI.ini" output="screen">
+      <param name="subscribe_depth"      type="bool"   value="false"/>
+      <param name="subscribe_rgbd"       type="bool"   value="true"/>
+      <param name="subscribe_stereo"     type="bool"   value="false"/>
+      <param name="subscribe_scan"       type="bool"   value="false"/>
+      <param name="subscribe_scan_cloud" type="bool"   value="false"/>
+      <param name="frame_id"             type="string" value="base_link"/>
+      <param name="odom_frame_id"        type="string" value="odom"/>
+      <param name="queue_size"           type="int"    value="30"/>
+      <param name="approx_sync"          type="bool"   value="true"/>
+    
+      <remap from="odom"       to="/odom"/>
+      <remap from="info"       to="/rtabmap/info"/>
+      <remap from="mapData"    to="/rtabmap/mapData"/>
+      <remap from="rgbd_image" to="/rtabmap/rgbd_image"/>
+      
+      <remap from="left/image_rect"        to="/camera/left/image_rect"/>
+      <remap from="left/camera_info"       to="/camera/left/camera_info"/>     
+    </node>
+
+  </group>
 </launch>
