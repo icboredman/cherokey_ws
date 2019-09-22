@@ -47,3 +47,5 @@ conservative_reset2:
 aggressive_reset2:
   reset_distance: 0.0
   layer_names: ["obstacle_layer"]
+
+# (https://answers.ros.org/question/252530/static-global-map-updating/)

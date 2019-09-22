@@ -7,3 +7,6 @@
 [submodule "src/teleop_key_node"]
 	path = src/teleop_key_node
 	url = https://github.com/icboredman/teleop_key_node.git
+[submodule "src/nav_controller_node"]
+	path = src/nav_controller_node
+	url = https://github.com/icboredman/nav_controller_node
