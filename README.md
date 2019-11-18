@@ -1,6 +1,6 @@
 # cherokey_ws
 
-A [ROS](http://www.ros.org) workspace that implements a configuration of ROS Navigation Stack for a four-wheeled robot that uses a **stereo camera** as a primary sensor.
+A [ROS](http://www.ros.org) workspace that implements a configuration of ROS Navigation Stack for a four-wheeled robot that uses **stereo camera** as a primary sensor.
 
 ### Components (nodes):
 
