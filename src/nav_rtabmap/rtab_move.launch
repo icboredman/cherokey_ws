@@ -1,9 +1,9 @@
 <launch>
   <master auto="start"/>
-
+<!--
   <env name="ROSCONSOLE_CONFIG_FILE"
        value="$(find nav_rtabmap)/custom_rosconsole.config"/>
-
+-->
   <group ns="base_controller">
     <include file="$(find nav_rtabmap)/base_start.launch" />
 
