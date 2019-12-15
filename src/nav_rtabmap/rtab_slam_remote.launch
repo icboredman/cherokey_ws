@@ -1,0 +1,22 @@
+<launch>
+  <master auto="start"/>
+
+  <include file="$(find nav_rtabmap)/base_start.launch" />
+
+  <arg name="pi/2" value="1.5707963267948966" />
+  <!-- camera pointing forward -->
+  <node pkg="tf" type="static_transform_publisher" name="camera2base" args="0.03 0.04 0.185 -$(arg pi/2) 0 -$(arg pi/2) base_link camera_frame 10" />
+
+  <group ns="rtabmap">
+    <node pkg="nodelet" type="nodelet" name="rgbd_sync" args="standalone rtabmap_ros/rgbd_sync" output="screen">
+      <remap from="rgb/image"       to="/camera/left/image_rect"/>
+      <remap from="depth/image"     to="/camera/depth"/>
+      <remap from="rgb/camera_info" to="/camera/left/camera_info"/>
+      <remap from="rgbd_image"      to="rgbd_image"/>  <!-- output -->
+      
+      <!-- all camera topics are exactly synchronized -->
+      <param name="approx_sync"       value="false"/>
+    </node>
+
+  </group>
+</launch>
