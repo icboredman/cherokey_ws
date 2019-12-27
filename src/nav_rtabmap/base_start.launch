@@ -1,5 +1,8 @@
 <launch>
-
+<!--
+  <env name="ROSCONSOLE_CONFIG_FILE"
+       value="$(find nav_rtabmap)/custom_rosconsole.config"/>
+-->
   <include file="$(find camera)/camera.launch" />
   <node pkg="base_serial" type="base_serial_node" name="base_serial_node" output="screen" />
 
